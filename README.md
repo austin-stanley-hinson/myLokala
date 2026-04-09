@@ -83,5 +83,5 @@ myLokala connects **shoppers** and **merchants** on one platform: browse active 
 **Austin Stanley Hinson**
 
 - **GitHub:** [github.com/austinstanleyhinson](https://github.com/austinstanleyhinson)
-- **LinkedIn:** [linkedin.com/in/austinstanleyhinson](https://www.linkedin.com/in/austinstanleyhinson/)
+- **LinkedIn:** [linkedin.com/in/austinstanleyhinson](https://www.linkedin.com/in/hinson-austin/)
 - **Portfolio:** [austinhinson.tech](https://austinhinson.tech)
