@@ -128,8 +128,32 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    /* Faint wallpaper: image under a theme-aware overlay (first layer = top) */
+    background-color: var(--background);
+    background-image:
+      linear-gradient(
+        to bottom,
+        rgb(255 255 255 / 0.48) 0%,
+        rgb(247 249 252 / 0.62) 100%
+      ),
+      url("/dashboard-background.jpg");
+    background-size: cover, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+    background-attachment: scroll, scroll;
   }
+
+  .dark body {
+    background-image:
+      linear-gradient(
+        to bottom,
+        rgb(10 18 32 / 0.58) 0%,
+        rgb(6 10 20 / 0.52) 100%
+      ),
+      url("/dashboard-background.jpg");
+  }
+
   html {
     @apply font-sans;
   }

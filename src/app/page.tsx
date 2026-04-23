@@ -34,7 +34,7 @@ export default async function HomePage() {
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-16 sm:px-6">
         <p className="text-sm text-muted-foreground">Coupon marketplace</p>
         <h1 className="text-4xl font-semibold tracking-tight">
-          Save local with <BrandWordmark className="text-inherit" />
+          Discover Premium local offers
         </h1>
         <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           Add{" "}
@@ -127,7 +127,7 @@ export default async function HomePage() {
   const rows = (coupons ?? []) as Coupon[];
 
   return (
-    <div className="w-full bg-background">
+    <div className="w-full">
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:px-6 sm:py-18">
         <section className="relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1000px_circle_at_20%_10%,rgba(30,144,214,0.14),transparent_60%),radial-gradient(900px_circle_at_80%_30%,rgba(143,224,195,0.18),transparent_55%)]" />
@@ -136,7 +136,7 @@ export default async function HomePage() {
               Local coupon marketplace
             </p>
             <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight text-primary-dark sm:text-5xl">
-              Premium local offers on <BrandWordmark className="text-inherit" />
+              Discover Premium local offers
             </h1>
             <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
               <BrandWordmark className="text-base" /> helps customers save at
