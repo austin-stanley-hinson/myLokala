@@ -46,7 +46,7 @@ export function CouponActiveToggle({
         .maybeSingle();
 
       if (profile?.role !== "restaurant_owner") {
-        setError("Only restaurant owners can change coupon status.");
+        setError("Only business owners can change coupon status.");
         return;
       }
 

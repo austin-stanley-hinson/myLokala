@@ -45,7 +45,7 @@ async function updateRestaurantLogo(params: {
     .eq("owner_id", params.ownerId);
 
   if (error) {
-    return `Restaurant update failed: ${error.message}`;
+    return `Business update failed: ${error.message}`;
   }
 
   return null;
@@ -71,7 +71,7 @@ export default function RestaurantLogoUpload() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setError("You must be signed in to upload a logo.");
+        setError("You must be signed in to upload a business logo.");
         return;
       }
 
@@ -90,10 +90,10 @@ export default function RestaurantLogoUpload() {
         return;
       }
 
-      setSuccess("Logo updated successfully.");
+      setSuccess("Business logo updated successfully.");
       router.refresh();
     } catch {
-      setError("Could not upload logo right now.");
+      setError("Could not upload business logo right now.");
     } finally {
       setUploading(false);
     }
@@ -105,7 +105,7 @@ export default function RestaurantLogoUpload() {
         htmlFor="restaurant-logo-upload"
         className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
       >
-        {uploading ? "Uploading..." : "Upload logo"}
+        {uploading ? "Uploading..." : "Upload business logo"}
       </label>
       <input
         id="restaurant-logo-upload"

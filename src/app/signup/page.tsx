@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const ROLE_OPTIONS = [
   { value: "customer", label: "Customer" },
-  { value: "restaurant_owner", label: "Restaurant owner" },
+  { value: "restaurant_owner", label: "Business owner" },
 ] as const;
 
 export default function SignupPage() {

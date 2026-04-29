@@ -141,7 +141,7 @@ export default async function HomePage() {
             <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
               <BrandWordmark className="text-base" /> helps customers save at
               {" "}nearby businesses and gives{" "}
-              restaurant owners a simple way to publish high-quality offers.
+              business owners a simple way to publish high-quality offers.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -191,7 +191,7 @@ export default async function HomePage() {
               </div>
               <div className="rounded-2xl border border-border/60 bg-card/80 px-5 py-4 shadow-sm">
                 <p className="text-sm font-semibold text-foreground">
-                  For restaurant owners
+                  For business owners
                 </p>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                   Publish and pause coupons, track redemptions, and stay in
@@ -235,10 +235,10 @@ export default async function HomePage() {
                     <div className="flex min-w-0 items-center gap-2">
                       <RestaurantLogo
                         logoUrl={restaurantMap.get(coupon.restaurant_id)?.logo_url ?? null}
-                        name={restaurantMap.get(coupon.restaurant_id)?.name ?? "Restaurant"}
+                        name={restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
                       />
                       <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {restaurantMap.get(coupon.restaurant_id)?.name ?? "Restaurant"}
+                        {restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
                       </p>
                     </div>
                     <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">

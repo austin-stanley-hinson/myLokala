@@ -5,7 +5,7 @@ export default function TermsPage() {
         Terms of Service
       </h1>
       <p className="mt-4 text-muted-foreground">
-        Terms of use for customers and merchants will appear here. Please check
+        Terms of use for customers and businesses will appear here. Please check
         back soon.
       </p>
     </div>

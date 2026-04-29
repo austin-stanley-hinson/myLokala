@@ -80,7 +80,7 @@ export default async function BrowsePage() {
           Browse coupons
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-          Explore active local offers from nearby restaurants.
+          Explore active local offers from nearby businesses.
         </p>
       </div>
 
@@ -98,10 +98,10 @@ export default async function BrowsePage() {
               <div className="flex min-w-0 items-center gap-2">
                 <RestaurantLogo
                   logoUrl={restaurantMap.get(coupon.restaurant_id)?.logo_url ?? null}
-                  name={restaurantMap.get(coupon.restaurant_id)?.name ?? "Restaurant"}
+                  name={restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
                 />
                 <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {restaurantMap.get(coupon.restaurant_id)?.name ?? "Restaurant"}
+                  {restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
                 </p>
               </div>
               <h2 className="mt-2 line-clamp-2 text-lg font-semibold tracking-tight text-primary-dark">

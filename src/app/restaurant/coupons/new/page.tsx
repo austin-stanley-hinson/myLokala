@@ -43,7 +43,7 @@ export default function NewCouponPage() {
       }
 
       if (!restaurant) {
-        setError("No restaurant is linked to your account.");
+        setError("No business is linked to your account.");
         return;
       }
 
@@ -85,7 +85,7 @@ export default function NewCouponPage() {
         </Link>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
-        Create an offer for your restaurant.
+        Create an offer for your business.
       </p>
 
       <form

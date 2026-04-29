@@ -46,7 +46,7 @@ export default async function RestaurantDashboardPage() {
     return (
       <div className={shellClass}>
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          Could not load your restaurant. Check RLS policies and the
+          Could not load your business. Check RLS policies and the
           restaurants table.
         </p>
       </div>
@@ -57,13 +57,13 @@ export default async function RestaurantDashboardPage() {
     return (
       <div className={shellClass}>
         <h1 className="text-3xl font-semibold tracking-tight text-primary-dark">
-          <BrandWordmark className="text-inherit" /> Merchant Dashboard
+          <BrandWordmark className="text-inherit" /> Business Dashboard
         </h1>
         <p className="mt-2 max-w-2xl text-base text-muted-foreground">
           Manage your coupons and track performance
         </p>
         <p className="mt-6 text-sm text-muted-foreground">
-          No restaurant is linked to your account yet. Ask an admin to set{" "}
+          No business is linked to your account yet. Ask an admin to set{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
             owner_id
           </code>{" "}
@@ -89,7 +89,7 @@ export default async function RestaurantDashboardPage() {
         <div className="flex flex-col gap-6 px-6 py-7 sm:flex-row sm:items-start sm:justify-between sm:px-10">
           <div className="min-w-0 space-y-2">
             <p className="text-sm font-medium text-primary/90">
-              <BrandWordmark className="text-base" /> Merchant Dashboard
+              <BrandWordmark className="text-base" /> Business Dashboard
             </p>
             <h1 className="text-3xl font-semibold tracking-tight text-primary-dark sm:text-4xl">
               Manage your coupons

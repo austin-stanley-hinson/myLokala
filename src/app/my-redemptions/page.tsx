@@ -64,7 +64,7 @@ export default async function MyRedemptionsPage() {
 
     return {
       id: `${row.redeemed_at ?? "row"}-${index}`,
-      restaurantName: restaurant?.name ?? "Restaurant",
+      restaurantName: restaurant?.name ?? "Business",
       couponTitle: coupon?.title ?? "Coupon",
       redeemedAt: row.redeemed_at,
     };

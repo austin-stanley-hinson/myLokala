@@ -6,7 +6,7 @@ export default function ContactPage() {
       </h1>
       <p className="mt-4 text-muted-foreground">
         For partnership or support inquiries, please reach out through the
-        Mid-Maine Chamber of Commerce or your merchant contact. A dedicated
+        Mid-Maine Chamber of Commerce or your business contact. A dedicated
         contact form is coming soon.
       </p>
     </div>
