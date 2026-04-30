@@ -102,9 +102,8 @@ PostgreSQL (via Supabase) centers on:
 
 ## Traction & partnerships
 
-- **200+ users** in the Mid-Maine / Waterville area.
-- Collaboration with the **Mid-Maine Chamber of Commerce** and local businesses.
-- **$5,000 seed grant** from the **Halloran Lab for Entrepreneurship** (University of Maine).
+- **200+ active users** in the Mid-Maine / Waterville area.
+- Partnerships with the **Mid-Maine Chamber of Commerce** and **local businesses** that support adoption and surface offers to the community.
 
 ---
 
