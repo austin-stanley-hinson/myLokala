@@ -1,61 +1,139 @@
 # myLokala
 
-**Local coupons, built for the businesses that anchor your town.**
+**Live at:** [https://mylokala.com](https://mylokala.com)
 
-myLokala is a full-stack coupon marketplace for Mid-Maine—helping people discover offers and redeem them in-store while giving merchants a simple way to publish, pause, and track promotions. The product serves **200+ active users** in the Waterville area, works with the **Mid-Maine Chamber of Commerce** and local partners, and received a **$5,000 seed grant** from the **Halloran Lab for Entrepreneurship**.
+**Local deals, live in production** — myLokala is the web app customers and businesses use today to publish offers, redeem coupons, and track activity—not a portfolio prototype.
+
+The platform is **live**, deployed, and **actively used in the Waterville, Maine area** (Mid-Maine), with real browsing, redemption, and owner workflows running against Supabase-backed data.
+
+| | |
+|---|---|
+| **Production** | [mylokala.com](https://mylokala.com) |
+| **Repository** | [github.com/austin-stanley-hinson/myLokala](https://github.com/austin-stanley-hinson/myLokala) |
 
 ---
 
-## Problem
+## Try it
 
-Small businesses run on thin margins and tight schedules. Paper flyers and ad-hoc discounts are hard to measure, easy to forget, and rarely tied to real foot traffic. Customers want deals nearby, but there’s no single, trusted place to find what’s actually valid today—especially at the local scale where relationships matter.
+**Open the app:** [https://mylokala.com](https://mylokala.com)
+
+- **Browse** active offers from local businesses.
+- **Redeem** coupons as a signed-in user (redemption history in **My Redemptions**).
+- **Sign in as a business owner** to create offers, and pause or reactivate them from the dashboard.
+
+---
+
+## Why it exists
+
+Independent businesses need measurable foot traffic and repeat visits without juggling flyers or untracked discounts. Shoppers want one trusted place to see what’s valid today. myLokala sits in the middle: curated discovery, authenticated redemption, and owner-controlled listings backed by real data—not spreadsheets.
 
 ## Solution
 
-myLokala connects **shoppers** and **merchants** on one platform: browse active coupons, redeem with clear rules, and let restaurant owners create and control offers from a lightweight dashboard. Access is enforced with **Supabase Row-Level Security (RLS)** so customers, owners, and data stay in the right lanes.
+Shoppers and business owners **already interact on the live product**: customers open the site, see what’s running today, and redeem; owners log in, ship new offers, and flip listings on or off as inventory and timing change. The same deployment that powers the public marketplace also enforces who can do what, using **Postgres and Row Level Security** so access matches real roles—not a static mockup or side project.
 
-## Features
+---
 
-- **Discovery & redemption** — Browse active coupons; redeem flows tied to authenticated users and merchant context.
-- **Merchant dashboard** — Create coupons, pause or reactivate listings, and manage what customers see.
-- **Branding** — Restaurant logos via Supabase Storage, shown consistently on coupon cards.
-- **Theming** — Light/dark mode for a polished, product-grade UI.
-- **Secure by design** — Role-aware access patterns backed by PostgreSQL RLS (not client-only checks).
+## Key features
 
-## Tech Stack
+**Customers**
+
+- Browse active coupons on the marketplace.
+- Redeem offers as an authenticated user (duplicate redemptions prevented).
+- Review redemption history in **My Redemptions**.
+
+**Business owners**
+
+- **Business dashboard** — overview and coupon management tied to their account.
+- Create coupons for their business.
+- Pause and reactivate coupons so listings stay accurate.
+
+**Platform & ops**
+
+- **Supabase Auth** for sign-in and session handling.
+- **Row Level Security (RLS)** on Postgres so access follows roles (customers vs. owners vs. internal patterns)—not only UI checks.
+- **Logo uploads** via **Supabase Storage** (`restaurant-logos` bucket); public URLs stored on business rows so coupon cards show logos consistently.
+- **Internal admin tools** for adding businesses and seeding coupons during rollout (routes under `/admin`).
+
+---
+
+## Tech stack
 
 | Layer | Choice |
 |--------|--------|
-| App framework | **Next.js** (App Router), **React 19**, **TypeScript** |
-| Styling | **Tailwind CSS**, **shadcn/ui**-style components |
-| Backend & data | **Supabase** (PostgreSQL, Auth, Storage) |
-| Theming | **next-themes** |
+| Frontend | **Next.js** (App Router), **React**, **TypeScript** |
+| Styling | **Tailwind CSS**, component patterns aligned with **shadcn/ui** |
+| Backend | **Supabase** — PostgreSQL, Auth, Storage |
+| Theming | **next-themes** (dark-first product UI) |
+| Hosting | **Vercel** — continuous deployment from Git |
 
-## Architecture Overview
+---
 
-- **Next.js** renders server components where it helps (data loading, auth-aware pages) and client components for interactive pieces (redeem, toggles, uploads, theme).
-- **Supabase** holds `restaurants`, `coupons`, `profiles`, `redemptions`, etc., with **RLS** governing who can read or write what.
-- **Storage** (e.g. `restaurant-logos`) stores merchant assets; public URLs are stored on `restaurants.logo_url`.
-- No separate BFF: the app talks to Supabase from the server and browser using the official clients, with secrets staying out of client bundles.
+## Deployment
 
-## Getting Started
+- **Hosting:** [Vercel](https://vercel.com) — production builds deploy from the connected Git repository.
+- **Custom domain:** [https://mylokala.com](https://mylokala.com)
+- **Backend:** [Supabase](https://supabase.com) — **PostgreSQL** (data + RLS), **Auth**, and **Storage** (e.g. business logos).
+
+Configure the same `NEXT_PUBLIC_SUPABASE_*` environment variables on Vercel as in local `.env.local` so the live app talks to your hosted Supabase project.
+
+---
+
+## Architecture overview
+
+- **Next.js** uses Server Components where data loads on the server (lists, dashboard shells, redemption queries) and Client Components for interactions (redeem flows, coupon toggles, logo upload, theme).
+- **Supabase** is the system of record: Postgres for relational data, Auth for identities, Storage for logo assets. The app uses official Supabase clients on the server and in the browser; sensitive logic relies on **RLS**, not hidden-by-obscurity client checks alone.
+
+---
+
+## Database overview
+
+PostgreSQL (via Supabase) centers on:
+
+| Area | Role |
+|------|------|
+| **profiles** | User metadata and **role** (e.g. customer vs. business owner) driving access patterns. |
+| **restaurants** | Business records (name, location, optional owner linkage, `logo_url`). Naming reflects historical schema; product copy treats these as **businesses**. |
+| **coupons** | Offers (title, description, expiration, active flag, redemption metadata). Scoped to a business via foreign keys. |
+| **redemptions** | Audit trail of redemptions per user and coupon; supports duplicate prevention and **My Redemptions**. |
+
+**RLS** policies enforce who can read or insert/update rows by role and ownership so customer data and owner dashboards stay scoped correctly.
+
+---
+
+## Traction & partnerships
+
+- **200+ users** in the Mid-Maine / Waterville area.
+- Collaboration with the **Mid-Maine Chamber of Commerce** and local businesses.
+- **$5,000 seed grant** from the **Halloran Lab for Entrepreneurship** (University of Maine).
+
+---
+
+## Local development
 
 **Prerequisites:** Node.js 20+ and npm.
 
-1. **Clone the repo** and install dependencies:
+1. **Clone and install**
 
    ```bash
+   git clone https://github.com/austin-stanley-hinson/myLokala.git
+   cd myLokala
    npm install
    ```
 
-2. **Environment** — Copy `.env.example` to `.env.local` and set:
+2. **Environment variables**
 
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   Copy `.env.example` to `.env.local` and set:
 
-   Apply the SQL migrations under `supabase/migrations/` in your Supabase project (including storage bucket setup for logos, if you use that feature).
+   - `NEXT_PUBLIC_SUPABASE_URL` — your Supabase project URL  
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous (public) key for client and server helpers  
 
-3. **Run locally:**
+   These are required for Auth, database queries, and Storage-backed features.
+
+3. **Database & storage**
+
+   Apply migrations under `supabase/migrations/` to your Supabase project so tables and **RLS** match the app. For logo uploads, ensure a public Storage bucket named **`restaurant-logos`** exists (or align bucket name with your migration/config).
+
+4. **Run the app**
 
    ```bash
    npm run dev
@@ -63,18 +141,22 @@ myLokala connects **shoppers** and **merchants** on one platform: browse active 
 
    Open [http://localhost:3000](http://localhost:3000).
 
-4. **Production build:**
+5. **Production build (optional check)**
 
    ```bash
    npm run build
    npm start
    ```
 
-## Future Work
+---
 
-- **Toast POS API** — Tie redemptions and campaigns to revenue attribution where merchants use Toast.
-- **Deeper analytics** — Merchant-facing summaries beyond raw redemption counts.
-- **Scale & reliability** — Caching, rate limits, and operational monitoring as usage grows beyond the current regional footprint.
+## Roadmap
+
+- **Toast POS integration** — Attribute in-store transactions and revenue to platform-driven activity where businesses use Toast.
+- **Business analytics dashboard** — Deeper metrics beyond raw redemption counts for owners.
+- **Improved admin tooling** — Richer internal workflows as the operator surface matures.
+- **Search & filtering** — Faster discovery as the catalog grows.
+- **Mobile alignment** — UX and APIs structured so a future native or PWA experience stays consistent.
 
 ---
 
@@ -83,5 +165,5 @@ myLokala connects **shoppers** and **merchants** on one platform: browse active 
 **Austin Stanley Hinson**
 
 - **GitHub:** [github.com/austinstanleyhinson](https://github.com/austinstanleyhinson)
-- **LinkedIn:** [linkedin.com/in/austinstanleyhinson](https://www.linkedin.com/in/hinson-austin/)
+- **LinkedIn:** [linkedin.com/in/hinson-austin](https://www.linkedin.com/in/hinson-austin/)
 - **Portfolio:** [austinhinson.tech](https://austinhinson.tech)
