@@ -24,6 +24,7 @@ export function SiteHeader() {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   const menuContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -132,14 +133,17 @@ export function SiteHeader() {
             href="/"
             className="flex shrink-0 items-center gap-2.5 rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Image
-              src="/lokala-logo.png"
-              alt="myLokala"
-              width={120}
-              height={36}
-              className="h-9 w-auto max-h-9 rounded-md bg-transparent object-contain object-left p-1 dark:bg-white/10"
-              priority
-            />
+            {!logoError ? (
+              <Image
+                src="/lokala-logo.png"
+                alt=""
+                width={120}
+                height={36}
+                className="h-9 w-auto max-h-9 rounded-md bg-transparent object-contain object-left p-1 dark:bg-white/10"
+                priority
+                onError={() => setLogoError(true)}
+              />
+            ) : null}
             <BrandWordmark className="text-lg" />
           </Link>
 

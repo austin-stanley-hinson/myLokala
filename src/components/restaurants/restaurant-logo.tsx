@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import { cn } from "@/lib/utils";
 
 export default function RestaurantLogo({
@@ -9,6 +13,9 @@ export default function RestaurantLogo({
   name: string;
   className?: string;
 }) {
+  const [imageError, setImageError] = useState(false);
+  const showImage = Boolean(logoUrl) && !imageError;
+
   return (
     <div
       className={cn(
@@ -16,14 +23,15 @@ export default function RestaurantLogo({
         className,
       )}
     >
-      {logoUrl ? (
+      {showImage ? (
         <div className="h-full w-full overflow-hidden rounded-lg bg-white/95 dark:bg-white/90">
           {/* Using a plain img avoids remote host config changes. */}
           <img
-            src={logoUrl}
+            src={logoUrl!}
             alt={`${name} logo`}
             className="h-full w-full scale-105 object-contain"
             loading="lazy"
+            onError={() => setImageError(true)}
           />
         </div>
       ) : (
