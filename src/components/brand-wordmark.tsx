@@ -6,21 +6,14 @@ type BrandWordmarkProps = {
 
 export function BrandWordmark({ className }: BrandWordmarkProps) {
   return (
-    <span className={cn("inline-flex items-baseline gap-0.5", className)}>
-      <span
-        className={cn(
-          "text-[0.85em] font-medium tracking-tight text-primary",
-        )}
-      >
-        my
-      </span>
-      <span
-        className={cn(
-          "font-bold tracking-tight text-foreground",
-        )}
-      >
-        Lokala
-      </span>
+    <span
+      className={cn(
+        "inline-flex items-baseline gap-0.5 font-heading tracking-normal",
+        className,
+      )}
+    >
+      <span className="text-[0.9em] font-medium text-primary">my</span>
+      <span className="font-bold text-foreground">Lokala</span>
     </span>
   );
 }

@@ -132,10 +132,10 @@ export default async function HomePage() {
         <section className="relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1000px_circle_at_20%_10%,rgba(30,144,214,0.14),transparent_60%),radial-gradient(900px_circle_at_80%_30%,rgba(143,224,195,0.18),transparent_55%)]" />
           <div className="relative px-6 py-12 sm:px-10 sm:py-14">
-            <p className="text-sm font-medium text-primary/90">
+            <p className="text-base font-medium text-primary/90">
               Local coupon marketplace
             </p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight text-primary-dark sm:text-5xl">
+            <h1 className="mt-3 max-w-3xl text-4xl font-semibold text-primary-dark sm:text-5xl">
               Discover Premium local offers
             </h1>
             <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
@@ -181,19 +181,19 @@ export default async function HomePage() {
 
             <div className="mt-10 grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-border/60 bg-card/80 px-5 py-4 shadow-sm">
-                <p className="text-sm font-semibold text-foreground">
+                <p className="text-base font-semibold text-foreground">
                   For customers
                 </p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-1 text-base leading-relaxed text-muted-foreground">
                   Discover active offers, redeem quickly, and keep spending
                   local.
                 </p>
               </div>
               <div className="rounded-2xl border border-border/60 bg-card/80 px-5 py-4 shadow-sm">
-                <p className="text-sm font-semibold text-foreground">
+                <p className="text-base font-semibold text-foreground">
                   For business owners
                 </p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-1 text-base leading-relaxed text-muted-foreground">
                   Publish and pause coupons, track redemptions, and stay in
                   control.
                 </p>
@@ -205,10 +205,10 @@ export default async function HomePage() {
         <section className="mt-14 space-y-5">
           <div className="flex items-end justify-between gap-6">
             <div className="space-y-1">
-              <h2 className="text-xl font-semibold tracking-tight text-primary-dark">
+              <h2 className="text-xl font-semibold text-primary-dark">
                 Active coupons
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base text-muted-foreground">
                 Fresh offers from local businesses.
               </p>
             </div>
@@ -229,38 +229,38 @@ export default async function HomePage() {
               {rows.map((coupon) => (
                 <li
                   key={coupon.id}
-                  className="group rounded-2xl border border-border/70 bg-card p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  className="group rounded-2xl border border-border/70 bg-card p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-3">
                       <RestaurantLogo
                         logoUrl={restaurantMap.get(coupon.restaurant_id)?.logo_url ?? null}
                         name={restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
                       />
-                      <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <p className="truncate text-base font-medium text-muted-foreground">
                         {restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
                       </p>
                     </div>
-                    <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+                    <span className="rounded-full bg-accent px-2.5 py-1 text-sm font-medium text-accent-foreground">
                       Active
                     </span>
                   </div>
 
-                  <h3 className="mt-2 line-clamp-2 text-lg font-semibold tracking-tight text-primary-dark">
+                  <h3 className="mt-3 line-clamp-2 text-xl font-semibold text-primary-dark">
                     {coupon.title}
                   </h3>
 
                   {coupon.description ? (
-                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+                    <p className="mt-2 line-clamp-3 text-base leading-relaxed text-muted-foreground">
                       {coupon.description}
                     </p>
                   ) : (
-                    <p className="mt-2 text-sm text-muted-foreground">
+                    <p className="mt-2 text-base leading-relaxed text-muted-foreground">
                       A great local deal—redeem while it lasts.
                     </p>
                   )}
 
-                  <div className="mt-4 flex items-center justify-between gap-4 text-xs text-muted-foreground">
+                  <div className="mt-4 flex items-center justify-between gap-4 text-sm text-muted-foreground">
                     <p>{coupon.current_redemptions ?? 0} redemptions</p>
                     <p>
                       Expires{" "}

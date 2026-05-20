@@ -93,24 +93,24 @@ export default async function BrowsePage() {
           {rows.map((coupon) => (
             <li
               key={coupon.id}
-              className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm"
+              className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm"
             >
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-3">
                 <RestaurantLogo
                   logoUrl={restaurantMap.get(coupon.restaurant_id)?.logo_url ?? null}
                   name={restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
                 />
-                <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="truncate text-base font-medium text-muted-foreground">
                   {restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
                 </p>
               </div>
-              <h2 className="mt-2 line-clamp-2 text-lg font-semibold tracking-tight text-primary-dark">
+              <h2 className="mt-3 line-clamp-2 text-xl font-semibold text-primary-dark">
                 {coupon.title}
               </h2>
-              <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-2 line-clamp-3 text-base leading-relaxed text-muted-foreground">
                 {coupon.description ?? "A great local deal—redeem while it lasts."}
               </p>
-              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <div className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
                 <p>{coupon.current_redemptions ?? 0} redemptions</p>
                 <p>
                   Expires{" "}

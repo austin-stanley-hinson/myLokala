@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const navLinkClass =
-  "whitespace-nowrap text-sm font-medium text-foreground/85 transition-colors hover:text-primary";
+  "whitespace-nowrap text-base font-medium text-foreground/90 transition-colors hover:text-primary";
 
 export function SiteHeader() {
   const router = useRouter();
@@ -127,8 +127,8 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-card/70 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-      <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-0 sm:h-16">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-8">
+      <div className="mx-auto flex min-h-[4.25rem] max-w-6xl flex-wrap items-center justify-between gap-x-5 gap-y-3 px-4 py-3 sm:flex-nowrap sm:gap-x-6 sm:px-6 sm:py-0 sm:min-h-[4.5rem]">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 sm:gap-x-8">
           <Link
             href="/"
             className="flex shrink-0 items-center gap-2.5 rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
@@ -144,7 +144,7 @@ export function SiteHeader() {
                 onError={() => setLogoError(true)}
               />
             ) : null}
-            <BrandWordmark className="text-lg" />
+            <BrandWordmark className="text-xl" />
           </Link>
 
           {ready && user ? (
@@ -202,7 +202,7 @@ export function SiteHeader() {
               onClick={() => setTheme(isDark ? "light" : "dark")}
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
-                "inline-flex h-9 items-center gap-2 rounded-xl border-border/80 bg-card/90 px-3 text-sm font-medium shadow-sm hover:bg-muted",
+                "inline-flex h-10 items-center gap-2 rounded-xl border-border/80 bg-card/90 px-3.5 text-base font-medium shadow-sm hover:bg-muted",
               )}
               aria-label={
                 isDark
@@ -234,7 +234,7 @@ export function SiteHeader() {
                 href="/login"
                 className={cn(
                   buttonVariants({ variant: "ghost", size: "sm" }),
-                  "text-sm font-medium",
+                  "text-base font-medium",
                 )}
               >
                 Sign In
@@ -253,7 +253,7 @@ export function SiteHeader() {
                 onClick={() => setMenuOpen((open) => !open)}
                 className={cn(
                   buttonVariants({ variant: "outline", size: "sm" }),
-                  "inline-flex h-9 items-center gap-2 rounded-xl border-border/80 bg-card/90 px-3 text-sm font-medium shadow-sm hover:bg-muted",
+                  "inline-flex h-10 items-center gap-2 rounded-xl border-border/80 bg-card/90 px-3.5 text-base font-medium shadow-sm hover:bg-muted",
                 )}
               >
                 <UserRound className="size-4 shrink-0" aria-hidden />
