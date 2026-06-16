@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UserRound } from "lucide-react";
+import { Menu, UserRound, X } from "lucide-react";
 import type { AuthChangeEvent, User } from "@supabase/supabase-js";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
@@ -12,8 +12,13 @@ import { buttonVariants } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-const navLinkClass =
-  "whitespace-nowrap rounded-full px-3.5 py-2 text-base font-bold text-lokala-brown transition-colors hover:bg-white hover:text-lokala-green-dark sm:text-lg";
+type NavItem = { href: string; label: string };
+
+const desktopLinkClass =
+  "whitespace-nowrap rounded-full px-3.5 py-2 text-base font-bold text-lokala-brown transition-colors hover:bg-white hover:text-lokala-green-dark lg:text-lg";
+
+const mobileLinkClass =
+  "block rounded-2xl px-4 py-3 text-lg font-bold text-lokala-brown transition-colors hover:bg-lokala-green-light hover:text-lokala-green-dark";
 
 export function SiteHeader() {
   const router = useRouter();
@@ -21,6 +26,7 @@ export function SiteHeader() {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const menuContainerRef = useRef<HTMLDivElement>(null);
 
@@ -40,6 +46,18 @@ export function SiteHeader() {
       document.removeEventListener("mousedown", handleMouseDown);
     };
   }, [menuOpen]);
+
+  // Close the mobile panel on Escape.
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileOpen(false);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -107,6 +125,7 @@ export function SiteHeader() {
 
   async function handleSignOut() {
     setMenuOpen(false);
+    setMobileOpen(false);
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
@@ -116,70 +135,61 @@ export function SiteHeader() {
   const menuItemClass =
     "block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted";
 
+  // Primary nav links, derived from auth state (shared by desktop + mobile).
+  const navItems: NavItem[] = [
+    { href: "/browse", label: "Deals" },
+    { href: "/gift-certificates", label: "Gift Certificates" },
+  ];
+  if (ready && !user) {
+    navItems.push({ href: "/signup", label: "Businesses" });
+  }
+  if (ready && user && role === "customer") {
+    navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
+  }
+  if (ready && user && role === "restaurant_owner") {
+    navItems.push({ href: "/restaurant/dashboard", label: "Dashboard" });
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-lokala-border bg-lokala-cream-light/90 backdrop-blur-xl supports-[backdrop-filter]:bg-lokala-cream-light/80">
-      <div className="mx-auto flex min-h-[4.5rem] max-w-7xl flex-wrap items-center justify-between gap-x-5 gap-y-3 px-4 py-3 sm:flex-nowrap sm:gap-x-6 sm:px-6 sm:py-0 sm:min-h-[5rem]">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
-          <Link
-            href="/"
-            className="flex shrink-0 items-center gap-3 rounded-2xl outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {!logoError ? (
-              <Image
-                src="/lokala-logo.png"
-                alt=""
-                width={120}
-                height={48}
-                className="h-11 w-auto max-h-11 rounded-2xl bg-white object-contain object-left p-1 shadow-lokala-soft"
-                priority
-                onError={() => setLogoError(true)}
-              />
-            ) : null}
-            <BrandWordmark className="text-2xl" />
-          </Link>
-
-          {ready && user ? (
-            <nav
-              className="flex flex-wrap items-center gap-x-1 gap-y-1"
-              aria-label="Primary"
-            >
-              <Link href="/browse" className={navLinkClass}>
-                Deals
-              </Link>
-              <Link href="/gift-certificates" className={navLinkClass}>
-                Gift Certificates
-              </Link>
-              {role === "customer" ? (
-                <Link href="/my-redemptions" className={navLinkClass}>
-                  My Redemptions
-                </Link>
-              ) : null}
-              {role === "restaurant_owner" ? (
-                <Link href="/restaurant/dashboard" className={navLinkClass}>
-                  Dashboard
-                </Link>
-              ) : null}
-            </nav>
-          ) : ready && !user ? (
-            <nav
-              className="flex flex-wrap items-center gap-x-1 gap-y-1"
-              aria-label="Primary"
-            >
-              <Link href="/browse" className={navLinkClass}>
-                Deals
-              </Link>
-              <Link href="/gift-certificates" className={navLinkClass}>
-                Gift Certificates
-              </Link>
-              <Link href="/signup" className={navLinkClass}>
-                Businesses
-              </Link>
-            </nav>
+      <div className="mx-auto flex min-h-[4.25rem] max-w-7xl items-center justify-between gap-x-4 px-4 sm:px-6 sm:min-h-[5rem]">
+        {/* Logo + wordmark */}
+        <Link
+          href="/"
+          onClick={() => setMobileOpen(false)}
+          className="flex shrink-0 items-center gap-2.5 rounded-2xl outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {!logoError ? (
+            <Image
+              src="/lokala-logo.png"
+              alt=""
+              width={120}
+              height={48}
+              className="h-10 w-auto max-h-10 rounded-2xl bg-white object-contain object-left p-1 shadow-lokala-soft sm:h-11 sm:max-h-11"
+              priority
+              onError={() => setLogoError(true)}
+            />
           ) : null}
-        </div>
+          <BrandWordmark className="text-xl sm:text-2xl" />
+        </Link>
 
+        {/* Desktop nav */}
+        {ready ? (
+          <nav
+            className="hidden items-center gap-x-1 lg:flex"
+            aria-label="Primary"
+          >
+            {navItems.map((item) => (
+              <Link key={item.href} href={item.href} className={desktopLinkClass}>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
+
+        {/* Desktop account / auth */}
         <div
-          className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto"
+          className="hidden shrink-0 items-center gap-2 lg:flex"
           aria-busy={!ready}
           aria-label="Account"
         >
@@ -223,7 +233,7 @@ export function SiteHeader() {
                 )}
               >
                 <UserRound className="size-4 shrink-0" aria-hidden />
-                <span className="max-w-[10rem] truncate sm:max-w-[12rem]">
+                <span className="max-w-[10rem] truncate xl:max-w-[12rem]">
                   Account
                 </span>
               </button>
@@ -246,7 +256,84 @@ export function SiteHeader() {
             </div>
           )}
         </div>
+
+        {/* Mobile hamburger */}
+        <button
+          type="button"
+          onClick={() => setMobileOpen((open) => !open)}
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-nav"
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-lokala-border bg-white text-lokala-brown shadow-sm transition-colors hover:bg-lokala-brown-soft lg:hidden"
+        >
+          {mobileOpen ? (
+            <X className="size-6" aria-hidden />
+          ) : (
+            <Menu className="size-6" aria-hidden />
+          )}
+        </button>
       </div>
+
+      {/* Mobile panel */}
+      {mobileOpen ? (
+        <div
+          id="mobile-nav"
+          className="border-t border-lokala-border bg-lokala-cream-light lg:hidden"
+        >
+          <nav
+            className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3 sm:px-6"
+            aria-label="Primary"
+          >
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={mobileLinkClass}
+              >
+                {item.label}
+              </Link>
+            ))}
+
+            <div className="mt-2 flex flex-col gap-2 border-t border-lokala-border pt-3">
+              {!ready ? (
+                <span
+                  className="h-12 w-full animate-pulse rounded-full bg-muted"
+                  aria-hidden
+                />
+              ) : !user ? (
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileOpen(false)}
+                    className="w-full rounded-full bg-lokala-green px-5 py-3.5 text-center text-base font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark"
+                  >
+                    Sign In
+                  </Link>
+                  <p className="pt-1 text-center text-sm font-semibold text-lokala-muted">
+                    Don&apos;t have an account?{" "}
+                    <Link
+                      href="/signup"
+                      onClick={() => setMobileOpen(false)}
+                      className="font-bold text-lokala-green-dark underline-offset-4 hover:underline"
+                    >
+                      Click here
+                    </Link>
+                  </p>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  className="w-full rounded-full border border-lokala-border bg-white px-5 py-3 text-center text-base font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
+                >
+                  Sign out
+                </button>
+              )}
+            </div>
+          </nav>
+        </div>
+      ) : null}
     </header>
   );
 }
