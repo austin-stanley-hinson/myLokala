@@ -1,28 +1,25 @@
 import type { Metadata } from "next";
-import { Geist_Mono } from "next/font/google";
-import localFont from "next/font/local";
+import { Fraunces, Geist_Mono, Inter } from "next/font/google";
 
+import { AlertBanner } from "@/components/layout/alert-banner";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
-import { ThemeProvider } from "@/components/theme-provider";
 
 import "./globals.css";
 
-const houseHome = localFont({
-  src: "./fonts/HouseHome.ttf",
-  variable: "--font-house-home",
+// Warm, soft serif for headings — civic/local-paper character.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
   display: "swap",
-  fallback: [
-    "ui-sans-serif",
-    "system-ui",
-    "-apple-system",
-    "BlinkMacSystemFont",
-    "Segoe UI",
-    "Roboto",
-    "Helvetica Neue",
-    "Arial",
-    "sans-serif",
-  ],
+  axes: ["opsz", "SOFT", "WONK"],
+});
+
+// Clean, highly legible sans for UI/body.
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -31,8 +28,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "mylokala — local coupon marketplace",
-  description: "Discover and redeem coupons from businesses near you.",
+  title: "myLokala — local community marketplace",
+  description:
+    "Support nearby businesses, discover local deals, and send gift certificates around Waterville, Maine.",
 };
 
 export default function RootLayout({
@@ -43,20 +41,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      suppressHydrationWarning
-      className={`${houseHome.variable} ${geistMono.variable} h-full font-sans antialiased`}
+      className={`${fraunces.variable} ${inter.variable} ${geistMono.variable} h-full font-sans antialiased`}
     >
-      <body className="flex min-h-full flex-col">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-          disableTransitionOnChange
-        >
-          <SiteHeader />
-          <main className="flex flex-1 flex-col">{children}</main>
-          <SiteFooter />
-        </ThemeProvider>
+      <body className="flex min-h-full flex-col bg-lokala-cream-light text-lokala-text">
+        <AlertBanner />
+        <SiteHeader />
+        <main className="flex flex-1 flex-col">{children}</main>
+        <SiteFooter />
       </body>
     </html>
   );

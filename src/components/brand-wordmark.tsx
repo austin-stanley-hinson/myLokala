@@ -12,8 +12,8 @@ export function BrandWordmark({ className }: BrandWordmarkProps) {
         className,
       )}
     >
-      <span className="text-[0.9em] font-medium text-primary">my</span>
-      <span className="font-bold text-foreground">Lokala</span>
+      <span className="text-[0.9em] font-bold text-lokala-green-dark">my</span>
+      <span className="font-extrabold text-lokala-brown-dark">Lokala</span>
     </span>
   );
 }
