@@ -5,8 +5,6 @@ import Image from "next/image";
 
 // Photos live in /public. Slide 0 is the branded intro; these follow it.
 const PHOTOS = [
-  "/w1.jpg",
-  "/w2.jpeg",
   "/w3.avif",
   "/w4.jpg",
   "/w5.jpg",
@@ -16,11 +14,11 @@ const PHOTOS = [
 ];
 
 const SLIDE_COUNT = PHOTOS.length + 1; // + branded intro
-const INTERVAL_MS = 8000;
+const INTERVAL_MS = 5000;
 
 /**
  * Hero placard that opens on the Waterville branded slide, then slowly dissolves
- * (crossfades) through the local photos every 8 seconds, looping back to the start.
+ * (crossfades) through the local photos every 5 seconds, looping back to the start.
  */
 export function HeroPlacard() {
   const [active, setActive] = useState(0);
