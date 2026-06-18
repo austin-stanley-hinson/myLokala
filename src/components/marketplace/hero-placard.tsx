@@ -5,7 +5,7 @@ import Image from "next/image";
 
 // Photos live in /public. Slide 0 is the branded intro; these follow it.
 const PHOTOS = [
-  "/w-1.jpg",
+  "/w1.jpg",
   "/w2.jpeg",
   "/w3.avif",
   "/w4.jpg",
