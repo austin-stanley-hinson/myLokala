@@ -64,14 +64,15 @@ export default function GiftCertificatesPage() {
                 Send someone a little local love.
               </h1>
               <p className="mt-5 text-lg leading-8 text-lokala-muted">
-                Choose an amount and send a gift certificate they can use with
+                Choose an amount and send a gift certificate straight to your
+                recipient&apos;s Lokala account, ready to spend with
                 participating local businesses around Waterville.
               </p>
 
               <ul className="mt-8 space-y-3 text-base font-semibold text-lokala-brown">
                 {[
                   "Spend it at participating local businesses",
-                  "Delivered by email to your recipient",
+                  "Delivered directly to your recipient's Lokala account",
                   "Keeps money in the community",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-3">
@@ -156,6 +157,10 @@ export default function GiftCertificatesPage() {
                     className={`mt-2 ${inputClass}`}
                     placeholder="name@example.com"
                   />
+                  <p className="mt-2 text-xs text-lokala-muted">
+                    Use the email linked to their Lokala account — funds are
+                    delivered straight to that account.
+                  </p>
                 </div>
                 <div>
                   <label className={labelClass} htmlFor="gift-note">
@@ -172,10 +177,15 @@ export default function GiftCertificatesPage() {
                 </div>
               </div>
 
+              <p className="mt-5 rounded-2xl border border-lokala-border bg-lokala-sun-soft px-4 py-3 text-sm font-semibold text-lokala-brown-dark">
+                Your recipient must already have a Lokala account before funds
+                can be delivered.
+              </p>
+
               <button
                 type="button"
                 onClick={() => setStep("payment")}
-                className="mt-6 w-full rounded-full bg-lokala-green px-6 py-4 font-extrabold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
+                className="mt-4 w-full rounded-full bg-lokala-green px-6 py-4 font-extrabold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
               >
                 Continue to Purchase
               </button>
@@ -244,6 +254,12 @@ export default function GiftCertificatesPage() {
                     {recipientEmail ? ` · ${recipientEmail}` : ""}
                   </p>
                 ) : null}
+
+                <p className="mt-3 text-sm text-lokala-muted">
+                  Delivered directly to your recipient&apos;s Lokala account.
+                  They must already have a Lokala account before funds can be
+                  delivered.
+                </p>
 
                 <div className="mt-6 space-y-4 text-lokala-text">
                   <div className="flex justify-between">
