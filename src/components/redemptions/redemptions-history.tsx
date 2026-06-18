@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 
 type RedemptionItem = {
   id: string;
-  restaurantName: string;
-  couponTitle: string;
+  businessName: string;
+  dealTitle: string;
   redeemedAt: string | null;
 };
 
@@ -74,10 +74,10 @@ export default function RedemptionsHistory({
               className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm"
             >
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {item.restaurantName}
+                {item.businessName}
               </p>
               <p className="mt-2 text-lg font-semibold tracking-tight text-primary-dark">
-                {item.couponTitle}
+                {item.dealTitle}
               </p>
               <p className="mt-3 text-sm text-muted-foreground">
                 Redeemed{" "}

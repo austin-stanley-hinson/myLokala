@@ -6,17 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 type RedemptionRow = {
+  id: string;
+  deal_id: string | null;
+  business_name: string | null;
+  deal_title: string | null;
   redeemed_at: string | null;
-  coupons: { title: string } | { title: string }[] | null;
-  restaurants: { name: string } | { name: string }[] | null;
 };
-
-function firstRelation<T extends { title?: string; name?: string }>(
-  rel: T | T[] | null,
-): T | null {
-  if (!rel) return null;
-  return Array.isArray(rel) ? rel[0] ?? null : rel;
-}
 
 export default async function MyRedemptionsPage() {
   if (
@@ -43,32 +38,17 @@ export default async function MyRedemptionsPage() {
 
   const { data: rows, error } = await supabase
     .from("redemptions")
-    .select(
-      `
-      redeemed_at,
-      coupons (
-        title
-      ),
-      restaurants (
-        name
-      )
-    `,
-    )
+    .select("id, deal_id, business_name, deal_title, redeemed_at")
     .eq("user_id", user.id)
     .order("redeemed_at", { ascending: false });
 
   const list = (rows ?? []) as RedemptionRow[];
-  const items = list.map((row, index) => {
-    const coupon = firstRelation(row.coupons);
-    const restaurant = firstRelation(row.restaurants);
-
-    return {
-      id: `${row.redeemed_at ?? "row"}-${index}`,
-      restaurantName: restaurant?.name ?? "Business",
-      couponTitle: coupon?.title ?? "Coupon",
-      redeemedAt: row.redeemed_at,
-    };
-  });
+  const items = list.map((row, index) => ({
+    id: row.id ?? `${row.deal_id ?? "row"}-${index}`,
+    businessName: row.business_name ?? "Business",
+    dealTitle: row.deal_title ?? "Offer",
+    redeemedAt: row.redeemed_at,
+  }));
 
   return (
     <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:px-6 sm:py-18">
@@ -77,7 +57,7 @@ export default async function MyRedemptionsPage() {
           My Redemptions
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-          Review your coupon redemption history.
+          Review your deal redemption history.
         </p>
       </div>
 
@@ -87,7 +67,7 @@ export default async function MyRedemptionsPage() {
         </p>
       ) : items.length === 0 ? (
         <p className="mt-10 text-sm text-muted-foreground">
-          You have not redeemed any coupons yet.
+          You have not redeemed any deals yet.
         </p>
       ) : (
         <RedemptionsHistory items={items} />
