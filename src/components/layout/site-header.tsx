@@ -112,12 +112,11 @@ export function SiteHeader() {
 
   // Primary nav links, derived from auth state (shared by desktop + mobile).
   const navItems: NavItem[] = [
-    { href: "/browse", label: "Deals" },
+    { href: "/", label: "Home" },
+    { href: "/browse", label: "Browse Deals" },
     { href: "/gift-certificates", label: "Gift Certificates" },
+    { href: "/signup", label: "For Businesses" },
   ];
-  if (ready && !user) {
-    navItems.push({ href: "/signup", label: "Businesses" });
-  }
   if (ready && user) {
     navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
   }
@@ -171,26 +170,15 @@ export function SiteHeader() {
               aria-hidden
             />
           ) : !user ? (
-            <>
-              <Link
-                href="/login"
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "sm" }),
-                  "h-10 rounded-full px-4 text-base font-bold text-lokala-brown hover:bg-white hover:text-lokala-green-dark",
-                )}
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/signup"
-                className={cn(
-                  buttonVariants({ size: "sm" }),
-                  "h-10 rounded-full px-5 text-sm font-bold shadow-lokala-soft",
-                )}
-              >
-                Sign Up
-              </Link>
-            </>
+            <Link
+              href="/login"
+              className={cn(
+                buttonVariants({ size: "sm" }),
+                "h-10 rounded-full px-5 text-sm font-bold shadow-lokala-soft",
+              )}
+            >
+              Business Sign In
+            </Link>
           ) : (
             <div ref={menuContainerRef} className="relative">
               <button
@@ -274,25 +262,13 @@ export function SiteHeader() {
                   aria-hidden
                 />
               ) : !user ? (
-                <>
-                  <Link
-                    href="/login"
-                    onClick={() => setMobileOpen(false)}
-                    className="w-full rounded-full bg-lokala-green px-5 py-3.5 text-center text-base font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark"
-                  >
-                    Sign In
-                  </Link>
-                  <p className="pt-1 text-center text-sm font-semibold text-lokala-muted">
-                    Don&apos;t have an account?{" "}
-                    <Link
-                      href="/signup"
-                      onClick={() => setMobileOpen(false)}
-                      className="font-bold text-lokala-green-dark underline-offset-4 hover:underline"
-                    >
-                      Click here
-                    </Link>
-                  </p>
-                </>
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="w-full rounded-full bg-lokala-green px-5 py-3.5 text-center text-base font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark"
+                >
+                  Business Sign In
+                </Link>
               ) : (
                 <button
                   type="button"

@@ -40,19 +40,10 @@ export default function LoginPage() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profileError) {
-        setError(profileError.message);
-        return;
-      }
-
+      // Customers use the mobile app; the website's sign-in is for businesses.
+      // Role lives in auth user metadata (set at sign-up); profiles has no role column.
       const destination =
-        profile?.role === "restaurant_owner"
+        user.user_metadata?.role === "restaurant_owner"
           ? "/restaurant/dashboard"
           : "/";
 
@@ -71,9 +62,12 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-16 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        Business sign in
+      </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Welcome back to Lokala.
+        Sign in to manage your business on Lokala. Customers use the Lokala
+        mobile app.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
@@ -128,12 +122,12 @@ export default function LoginPage() {
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        No account?{" "}
+        New to Lokala?{" "}
         <Link
           href="/signup"
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Sign up
+          List your business
         </Link>
       </p>
     </div>
