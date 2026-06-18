@@ -28,7 +28,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "myLokala — local community marketplace",
+  title: "Lokala",
   description:
     "Support nearby businesses, discover local deals, and send gift certificates around Waterville, Maine.",
 };
