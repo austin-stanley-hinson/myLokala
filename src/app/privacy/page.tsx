@@ -5,7 +5,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="mt-4 text-muted-foreground">
-        A full privacy policy will be published here. myLokala uses Supabase
+        A full privacy policy will be published here. Lokala uses Supabase
         authentication and follows industry practices for protecting your data.
       </p>
     </div>

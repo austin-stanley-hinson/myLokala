@@ -109,7 +109,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-10 border-t border-lokala-border pt-6 text-center text-xs text-lokala-muted sm:text-sm">
-          © 2026 myLokala · Built for local discovery in Waterville, Maine.
+          © 2026 Lokala · Built for local discovery in Waterville, Maine.
         </div>
       </div>
     </footer>
