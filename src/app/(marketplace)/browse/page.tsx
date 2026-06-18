@@ -1,22 +1,7 @@
+import RedeemDealButton from "@/components/deals/redeem-deal-button";
+import SaveDealButton from "@/components/deals/save-deal-button";
 import { createClient } from "@/lib/supabase/server";
-import RestaurantLogo from "@/components/restaurants/restaurant-logo";
-
-type Coupon = {
-  id: string;
-  title: string;
-  description: string | null;
-  expiration_at: string | null;
-  restaurant_id: string;
-  created_at: string | null;
-  is_active: boolean | null;
-  current_redemptions: number | null;
-};
-
-type Restaurant = {
-  id: string;
-  name: string;
-  logo_url: string | null;
-};
+import { DEAL_LIST_COLUMNS, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
 
@@ -35,49 +20,50 @@ export default async function BrowsePage() {
   }
 
   const supabase = await createClient();
-  const { data: coupons, error: couponsError } = await supabase
-    .from("coupons")
-    .select(
-      "id, title, description, expiration_at, restaurant_id, created_at, is_active, current_redemptions",
-    )
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: deals, error: dealsError } = await supabase
+    .from("deals")
+    .select(DEAL_LIST_COLUMNS)
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
-  if (couponsError) {
+  if (dealsError) {
     return (
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:px-6 sm:py-18">
         <h1 className="text-3xl font-semibold tracking-tight text-primary-dark">
-          Browse coupons
+          Browse deals
         </h1>
         <p className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          Could not load coupons: {couponsError.message}
+          Could not load deals: {dealsError.message}
         </p>
       </div>
     );
   }
 
-  const rows = (coupons ?? []) as Coupon[];
-  const restaurantIds = Array.from(
-    new Set(rows.map((coupon) => coupon.restaurant_id).filter(Boolean)),
-  );
+  const rows = (deals ?? []) as Deal[];
 
-  let restaurantMap = new Map<string, Restaurant>();
-  if (restaurantIds.length > 0) {
-    const { data: restaurants } = await supabase
-      .from("restaurants")
-      .select("id, name, logo_url")
-      .in("id", restaurantIds);
-
-    restaurantMap = new Map(
-      ((restaurants ?? []) as Restaurant[]).map((restaurant) => [restaurant.id, restaurant]),
-    );
+  let savedDealIds = new Set<string>();
+  if (user && rows.length > 0) {
+    const { data: saved } = await supabase
+      .from("saved_deals")
+      .select("deal_id")
+      .eq("user_id", user.id)
+      .in(
+        "deal_id",
+        rows.map((deal) => deal.id),
+      );
+    savedDealIds = new Set((saved ?? []).map((row) => row.deal_id as string));
   }
 
   return (
     <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:px-6 sm:py-18">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-primary-dark sm:text-4xl">
-          Browse coupons
+          Browse deals
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
           Explore active local offers from nearby businesses.
@@ -86,41 +72,53 @@ export default async function BrowsePage() {
 
       {rows.length === 0 ? (
         <p className="mt-10 text-sm text-muted-foreground">
-          No active coupons right now.
+          No active deals right now.
         </p>
       ) : (
         <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map((coupon) => (
+          {rows.map((deal) => (
             <li
-              key={coupon.id}
-              className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm"
+              key={deal.id}
+              className="flex flex-col rounded-2xl border border-border/70 bg-card p-6 shadow-sm"
             >
-              <div className="flex min-w-0 items-center gap-3">
-                <RestaurantLogo
-                  logoUrl={restaurantMap.get(coupon.restaurant_id)?.logo_url ?? null}
-                  name={restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-base font-medium text-muted-foreground">
+                    {deal.business_name ?? "Local business"}
+                  </p>
+                  {deal.category ? (
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-lokala-green-dark">
+                      {deal.category}
+                    </p>
+                  ) : null}
+                </div>
+                <SaveDealButton
+                  dealId={deal.id}
+                  initialSaved={savedDealIds.has(deal.id)}
                 />
-                <p className="truncate text-base font-medium text-muted-foreground">
-                  {restaurantMap.get(coupon.restaurant_id)?.name ?? "Business"}
-                </p>
               </div>
+
               <h2 className="mt-3 line-clamp-2 text-xl font-semibold text-primary-dark">
-                {coupon.title}
+                {deal.title}
               </h2>
               <p className="mt-2 line-clamp-3 text-base leading-relaxed text-muted-foreground">
-                {coupon.description ?? "A great local deal—redeem while it lasts."}
+                {deal.discount_detail ??
+                  "A great local offer—redeem while it lasts."}
               </p>
-              <div className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
-                <p>{coupon.current_redemptions ?? 0} redemptions</p>
+
+              <div className="mt-4 flex items-center justify-end gap-3 text-sm text-muted-foreground">
                 <p>
                   Expires{" "}
-                  {coupon.expiration_at
-                    ? new Date(coupon.expiration_at).toLocaleDateString(
-                        undefined,
-                        { dateStyle: "medium" },
-                      )
+                  {deal.expires_at
+                    ? new Date(deal.expires_at).toLocaleDateString(undefined, {
+                        dateStyle: "medium",
+                      })
                     : "—"}
                 </p>
+              </div>
+
+              <div className="mt-5 pt-1">
+                <RedeemDealButton deal={deal} />
               </div>
             </li>
           ))}

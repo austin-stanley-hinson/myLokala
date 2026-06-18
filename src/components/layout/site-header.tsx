@@ -24,7 +24,6 @@ export function SiteHeader() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
@@ -63,17 +62,6 @@ export function SiteHeader() {
     const supabase = createClient();
     let cancelled = false;
 
-    async function fetchProfile(userId: string) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
-      if (!cancelled) {
-        setRole(profile?.role ?? null);
-      }
-    }
-
     async function initFromGetUser() {
       const {
         data: { user: initialUser },
@@ -81,16 +69,8 @@ export function SiteHeader() {
 
       if (cancelled) return;
 
-      if (!initialUser) {
-        setUser(null);
-        setRole(null);
-        setReady(true);
-        return;
-      }
-
-      setUser(initialUser);
-      await fetchProfile(initialUser.id);
-      if (!cancelled) setReady(true);
+      setUser(initialUser ?? null);
+      setReady(true);
     }
 
     void initFromGetUser();
@@ -107,13 +87,8 @@ export function SiteHeader() {
         setUser(nextUser);
 
         if (!nextUser) {
-          setRole(null);
           setMenuOpen(false);
-          return;
         }
-
-        setRole(null);
-        void fetchProfile(nextUser.id);
       },
     );
 
@@ -143,11 +118,8 @@ export function SiteHeader() {
   if (ready && !user) {
     navItems.push({ href: "/signup", label: "Businesses" });
   }
-  if (ready && user && role === "customer") {
+  if (ready && user) {
     navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
-  }
-  if (ready && user && role === "restaurant_owner") {
-    navItems.push({ href: "/restaurant/dashboard", label: "Dashboard" });
   }
 
   return (

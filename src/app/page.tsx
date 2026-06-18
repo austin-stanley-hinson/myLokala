@@ -2,26 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
-import RedeemButton from "@/components/coupons/redeem-button";
-import RestaurantLogo from "@/components/restaurants/restaurant-logo";
+import RedeemDealButton from "@/components/deals/redeem-deal-button";
+import SaveDealButton from "@/components/deals/save-deal-button";
 import { createClient } from "@/lib/supabase/server";
-
-type Coupon = {
-  id: string;
-  title: string;
-  description: string | null;
-  expiration_at: string | null;
-  restaurant_id: string;
-  created_at: string | null;
-  is_active: boolean | null;
-  current_redemptions: number | null;
-};
-
-type Restaurant = {
-  id: string;
-  name: string;
-  logo_url: string | null;
-};
+import { DEAL_LIST_COLUMNS, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
 
@@ -117,7 +101,7 @@ export default async function HomePage() {
           <code className="rounded bg-lokala-green-light px-1.5 py-0.5 text-xs text-lokala-green-dark">
             .env.local
           </code>{" "}
-          to load coupons.
+          to load deals.
         </p>
       </div>
     );
@@ -129,70 +113,42 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let profileRole: string | null = null;
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    profileRole = profile?.role ?? null;
-  }
-
-  const { data: coupons, error: couponsError } = await supabase
-    .from("coupons")
-    .select(
-      "id, title, description, expiration_at, restaurant_id, created_at, is_active, current_redemptions",
-    )
+  const { data: deals, error: dealsError } = await supabase
+    .from("deals")
+    .select(DEAL_LIST_COLUMNS)
     .eq("is_active", true)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(6);
 
-  if (couponsError) {
-    console.error("Coupons query error:", couponsError);
+  if (dealsError) {
+    console.error("Deals query error:", dealsError);
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-16 sm:px-6">
         <h1 className="text-3xl font-extrabold tracking-tight text-lokala-brown-dark">
           <BrandWordmark className="text-inherit" /> Deals
         </h1>
         <p className="rounded-2xl border border-lokala-danger/30 bg-lokala-danger/5 px-4 py-3 text-sm text-lokala-danger">
-          Error loading coupons: {couponsError.message}
+          Error loading deals: {dealsError.message}
         </p>
       </div>
     );
   }
 
-  const restaurantIds = Array.from(
-    new Set((coupons ?? []).map((coupon) => coupon.restaurant_id).filter(Boolean)),
-  );
+  const rows = (deals ?? []) as Deal[];
 
-  let restaurantMap = new Map<string, Restaurant>();
-
-  if (restaurantIds.length > 0) {
-    const { data: restaurants, error: restaurantsError } = await supabase
-      .from("restaurants")
-      .select("id, name, logo_url")
-      .in("id", restaurantIds);
-
-    if (restaurantsError) {
-      console.error("Restaurants query error:", restaurantsError);
-      return (
-        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-16 sm:px-6">
-          <h1 className="text-3xl font-extrabold tracking-tight text-lokala-brown-dark">
-            <BrandWordmark className="text-inherit" /> Deals
-          </h1>
-          <p className="rounded-2xl border border-lokala-danger/30 bg-lokala-danger/5 px-4 py-3 text-sm text-lokala-danger">
-            Error loading restaurants: {restaurantsError.message}
-          </p>
-        </div>
+  // Mark which of these deals the signed-in user has already saved.
+  let savedDealIds = new Set<string>();
+  if (user && rows.length > 0) {
+    const { data: saved } = await supabase
+      .from("saved_deals")
+      .select("deal_id")
+      .eq("user_id", user.id)
+      .in(
+        "deal_id",
+        rows.map((deal) => deal.id),
       );
-    }
-
-    restaurantMap = new Map(
-      ((restaurants ?? []) as Restaurant[]).map((restaurant) => [restaurant.id, restaurant]),
-    );
+    savedDealIds = new Set((saved ?? []).map((row) => row.deal_id as string));
   }
-
-  const rows = (coupons ?? []) as Coupon[];
 
   return (
     <div className="w-full">
@@ -228,14 +184,6 @@ export default async function HomePage() {
               >
                 Buy a Gift Certificate
               </Link>
-              {user && profileRole === "restaurant_owner" ? (
-                <Link
-                  href="/restaurant/dashboard"
-                  className="rounded-full border border-lokala-border bg-white px-7 py-4 text-center font-bold text-lokala-green-dark transition hover:-translate-y-0.5 hover:bg-lokala-green-light"
-                >
-                  Business Dashboard
-                </Link>
-              ) : null}
             </div>
 
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-semibold text-lokala-muted">
@@ -327,62 +275,55 @@ export default async function HomePage() {
             </div>
           ) : (
             <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {rows.map((coupon) => {
-                const business = restaurantMap.get(coupon.restaurant_id);
-                return (
-                  <li
-                    key={coupon.id}
-                    className="group flex flex-col rounded-[2rem] border border-lokala-border bg-white p-5 shadow-lokala-card transition duration-200 hover:-translate-y-1 hover:shadow-lokala-lift"
-                  >
-                    <div className="mb-4 flex items-center justify-between gap-3 rounded-[1.5rem] bg-lokala-green-soft px-4 py-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <RestaurantLogo
-                          logoUrl={business?.logo_url ?? null}
-                          name={business?.name ?? "Business"}
-                        />
-                        <p className="truncate text-sm font-bold text-lokala-brown-dark">
-                          {business?.name ?? "Local business"}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-lokala-green-light px-3 py-1 text-xs font-extrabold text-lokala-green-dark">
-                        Active
-                      </span>
-                    </div>
+              {rows.map((deal) => (
+                <li
+                  key={deal.id}
+                  className="group flex flex-col rounded-[2rem] border border-lokala-border bg-white p-5 shadow-lokala-card transition duration-200 hover:-translate-y-1 hover:shadow-lokala-lift"
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3 rounded-[1.5rem] bg-lokala-green-soft px-4 py-4">
+                    <p className="truncate text-sm font-bold text-lokala-brown-dark">
+                      {deal.business_name ?? "Local business"}
+                    </p>
+                    <span className="shrink-0 rounded-full bg-lokala-green-light px-3 py-1 text-xs font-extrabold text-lokala-green-dark">
+                      Active
+                    </span>
+                  </div>
 
+                  <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-bold text-lokala-green-dark">
-                      Local deal
+                      {deal.category ?? "Local offer"}
                     </p>
-                    <h3 className="mt-1 line-clamp-2 text-xl font-extrabold text-lokala-brown-dark">
-                      {coupon.title}
-                    </h3>
+                    <SaveDealButton
+                      dealId={deal.id}
+                      initialSaved={savedDealIds.has(deal.id)}
+                    />
+                  </div>
+                  <h3 className="mt-1 line-clamp-2 text-xl font-extrabold text-lokala-brown-dark">
+                    {deal.title}
+                  </h3>
 
-                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-lokala-muted">
-                      {coupon.description ??
-                        "A great local deal — redeem while it lasts."}
-                    </p>
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-lokala-muted">
+                    {deal.discount_detail ??
+                      "A great local offer — redeem while it lasts."}
+                  </p>
 
-                    <div className="mt-4 flex items-center justify-between gap-4 text-xs font-semibold text-lokala-muted">
-                      <span>{coupon.current_redemptions ?? 0} redemptions</span>
-                      <span>
-                        Expires{" "}
-                        {coupon.expiration_at
-                          ? new Date(coupon.expiration_at).toLocaleDateString(
-                              undefined,
-                              { dateStyle: "medium" },
-                            )
-                          : "—"}
-                      </span>
-                    </div>
+                  <div className="mt-4 flex items-center justify-end gap-4 text-xs font-semibold text-lokala-muted">
+                    <span>
+                      Expires{" "}
+                      {deal.expires_at
+                        ? new Date(deal.expires_at).toLocaleDateString(
+                            undefined,
+                            { dateStyle: "medium" },
+                          )
+                        : "—"}
+                    </span>
+                  </div>
 
-                    <div className="mt-5 pt-1">
-                      <RedeemButton
-                        couponId={coupon.id}
-                        restaurantId={coupon.restaurant_id}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
+                  <div className="mt-5 pt-1">
+                    <RedeemDealButton deal={deal} />
+                  </div>
+                </li>
+              ))}
             </ul>
           )}
         </div>
