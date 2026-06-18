@@ -5,7 +5,7 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import RedeemDealButton from "@/components/deals/redeem-deal-button";
 import SaveDealButton from "@/components/deals/save-deal-button";
 import { createClient } from "@/lib/supabase/server";
-import { DEAL_LIST_COLUMNS, type Deal } from "@/types/deal";
+import { DEAL_LIST_COLUMNS, formatExpiry, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
 
@@ -308,15 +308,7 @@ export default async function HomePage() {
                   </p>
 
                   <div className="mt-4 flex items-center justify-end gap-4 text-xs font-semibold text-lokala-muted">
-                    <span>
-                      Expires{" "}
-                      {deal.expires_at
-                        ? new Date(deal.expires_at).toLocaleDateString(
-                            undefined,
-                            { dateStyle: "medium" },
-                          )
-                        : "—"}
-                    </span>
+                    <span>{formatExpiry(deal.expires_at)}</span>
                   </div>
 
                   <div className="mt-5 pt-1">

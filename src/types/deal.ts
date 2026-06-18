@@ -23,6 +23,23 @@ export const DEAL_LIST_COLUMNS =
   "id, business_name, title, discount_detail, category, is_active, expires_at, created_at, address, phone, website";
 
 /**
+ * `expires_at` is a free-text column in the mobile schema — values are mostly
+ * availability descriptions like "Ongoing" or "Every Monday", not dates. Format
+ * it as a date only when it actually parses; otherwise show the text verbatim.
+ */
+export function formatExpiry(value: string | null): string {
+  if (!value || !value.trim()) return "—";
+  const text = value.trim();
+  const parsed = Date.parse(text);
+  if (!Number.isNaN(parsed)) {
+    return `Expires ${new Date(parsed).toLocaleDateString(undefined, {
+      dateStyle: "medium",
+    })}`;
+  }
+  return text;
+}
+
+/**
  * Mirrors the mobile app's `redemptions` table. Deal details are denormalized
  * (snapshotted) at redemption time.
  */
