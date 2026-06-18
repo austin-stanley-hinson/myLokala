@@ -1,109 +1,125 @@
-# myLokala
+<p align="center">
+  <img src="public/lokala-logo.png" alt="Lokala" width="220" />
+</p>
 
-**Live at:** [https://mylokala.com](https://mylokala.com)
+<h1 align="center">Lokala</h1>
 
-**Local deals, live in production** — myLokala is the web app customers and businesses use today to publish offers, redeem coupons, and track activity—not a portfolio prototype.
+<p align="center">
+  <strong>Local deals, rooted in your community.</strong><br />
+  A community marketplace connecting Mid-Maine shoppers with the businesses around them.
+</p>
 
-The platform is **live**, deployed, and **actively used in the Waterville, Maine area** (Mid-Maine), with real browsing, redemption, and owner workflows running against Supabase-backed data.
-
-| | |
-|---|---|
-| **Production** | [mylokala.com](https://mylokala.com) |
-| **Repository** | [github.com/austin-stanley-hinson/myLokala](https://github.com/austin-stanley-hinson/myLokala) |
-
----
-
-## Try it
-
-**Open the app:** [https://mylokala.com](https://mylokala.com)
-
-- **Browse** active offers from local businesses.
-- **Redeem** coupons as a signed-in user (redemption history in **My Redemptions**).
-- **Sign in as a business owner** to create offers, and pause or reactivate them from the dashboard.
+<p align="center">
+  <a href="https://mylokala.com">mylokala.com</a> ·
+  <a href="https://github.com/austin-stanley-hinson/myLokala">Repository</a>
+</p>
 
 ---
 
-## Why it exists
+## Overview
 
-Independent businesses need measurable foot traffic and repeat visits without juggling flyers or untracked discounts. Shoppers want one trusted place to see what’s valid today. myLokala sits in the middle: curated discovery, authenticated redemption, and owner-controlled listings backed by real data—not spreadsheets.
+Lokala helps independent businesses in the Waterville, Maine area (Mid-Maine) reach
+nearby shoppers with real, redeemable offers — no flyers, no untracked discounts.
 
-## Solution
+The product spans two surfaces that share one backend:
 
-Shoppers and business owners **already interact on the live product**: customers open the site, see what’s running today, and redeem; owners log in, ship new offers, and flip listings on or off as inventory and timing change. The same deployment that powers the public marketplace also enforces who can do what, using **Postgres and Row Level Security** so access matches real roles—not a static mockup or side project.
+- **Mobile app** — where **customers** discover, save, and redeem deals day to day.
+- **Website** (this repo) — a **business- and discovery-focused** experience: browse
+  active deals, buy gift certificates, learn about Lokala, and onboard a business.
+
+Both surfaces read from the same **Supabase** project. The **mobile app's schema is
+the source of truth**, and the web app aligns to it (see
+[`docs/mobile-db-schema.md`](docs/mobile-db-schema.md)).
 
 ---
 
-## Key features
+## How it works
 
-**Customers**
+```mermaid
+flowchart TD
+    Visitor([Web visitor]) --> Web
+    Owner([Business owner]) -->|Business sign-in| Web
+    Customer([Customer]) --> App
 
-- Browse active coupons on the marketplace.
-- Redeem offers as an authenticated user (duplicate redemptions prevented).
-- Review redemption history in **My Redemptions**.
+    Web[Website<br/>Next.js on Vercel]
+    App[Lokala mobile app]
 
-**Business owners**
+    Web -->|Browse deals · Save · Gift certificates| Supabase
+    App -->|Discover · Save · Redeem| Supabase
 
-- **Business dashboard** — overview and coupon management tied to their account.
-- Create coupons for their business.
-- Pause and reactivate coupons so listings stay accurate.
+    Supabase[(Supabase<br/>Postgres · Auth · RLS)]
+    Supabase --- Tables[deals · redemptions · saved_deals · profiles · events]
 
-**Platform & ops**
+    classDef actor fill:#e9f6ec,stroke:#2f7d4f,color:#1f3d2b;
+    class Visitor,Owner,Customer actor;
+```
 
-- **Supabase Auth** for sign-in and session handling.
-- **Row Level Security (RLS)** on Postgres so access follows roles (customers vs. owners vs. internal patterns)—not only UI checks.
-- **Logo uploads** via **Supabase Storage** (`restaurant-logos` bucket); public URLs stored on business rows so coupon cards show logos consistently.
-- **Internal admin tools** for adding businesses and seeding coupons during rollout (routes under `/admin`).
+Businesses publish deals into Supabase; customers browse and redeem them (primarily in
+the app); and the website surfaces the same active deals publicly while handling gift
+certificates and business onboarding.
+
+---
+
+## Features
+
+**Discovery (public)**
+- Browse **active deals** pulled live from the shared `deals` table.
+- **Save deals** to a Lokala account (`saved_deals`) when signed in.
+- Redeem an offer as a signed-in user, recorded in `redemptions` and viewable under
+  **My Redemptions**.
+
+**Gift certificates**
+- Choose an amount (defaults to $100) and send a certificate **directly to a
+  recipient's Lokala account** — the recipient needs an existing Lokala account to
+  receive funds.
+
+**For businesses**
+- A dedicated **Business Sign In** and business-oriented sign-up flow. (Owner
+  dashboards that depended on the legacy schema are temporarily paused while they are
+  re-adapted to the deals model.)
+
+**Platform**
+- **Supabase Auth** for sessions, **Postgres + Row Level Security** so access matches
+  roles, and a public read policy that exposes only **active** deals to anonymous
+  visitors.
 
 ---
 
 ## Tech stack
 
 | Layer | Choice |
-|--------|--------|
+|-------|--------|
 | Frontend | **Next.js** (App Router), **React**, **TypeScript** |
 | Styling | **Tailwind CSS**, component patterns aligned with **shadcn/ui** |
 | Backend | **Supabase** — PostgreSQL, Auth, Storage |
-| Theming | **next-themes** (dark-first product UI) |
+| Theming | **next-themes** with a warm, light community-marketplace design |
 | Hosting | **Vercel** — continuous deployment from Git |
 
 ---
 
-## Deployment
+## Data model
 
-- **Hosting:** [Vercel](https://vercel.com) — production builds deploy from the connected Git repository.
-- **Custom domain:** [https://mylokala.com](https://mylokala.com)
-- **Backend:** [Supabase](https://supabase.com) — **PostgreSQL** (data + RLS), **Auth**, and **Storage** (e.g. business logos).
+The schema mirrors the mobile app (source of truth). See
+[`docs/mobile-db-schema.md`](docs/mobile-db-schema.md) for full column details.
 
-Configure the same `NEXT_PUBLIC_SUPABASE_*` environment variables on Vercel as in local `.env.local` so the live app talks to your hosted Supabase project.
+| Table | Role |
+|-------|------|
+| **deals** | Active offers (`business_name`, `title`, `discount_detail`, `category`, `is_active`, `expires_at`, …). The web app's homepage and browse pages read from here. |
+| **redemptions** | Per-user redemption history with the deal details snapshotted at redeem time (`deal_id`, `deal_title`, `business_name`, …). |
+| **saved_deals** | Bookmarked deals per user (`user_id`, `deal_id`). |
+| **profiles** | Member info (`full_name`, `member_id`, `member_type`). |
+| **events** | Chamber / local community events. |
 
----
-
-## Architecture overview
-
-- **Next.js** uses Server Components where data loads on the server (lists, dashboard shells, redemption queries) and Client Components for interactions (redeem flows, coupon toggles, logo upload, theme).
-- **Supabase** is the system of record: Postgres for relational data, Auth for identities, Storage for logo assets. The app uses official Supabase clients on the server and in the browser; sensitive logic relies on **RLS**, not hidden-by-obscurity client checks alone.
-
----
-
-## Database overview
-
-PostgreSQL (via Supabase) centers on:
-
-| Area | Role |
-|------|------|
-| **profiles** | User metadata and **role** (e.g. customer vs. business owner) driving access patterns. |
-| **restaurants** | Business records (name, location, optional owner linkage, `logo_url`). Naming reflects historical schema; product copy treats these as **businesses**. |
-| **coupons** | Offers (title, description, expiration, active flag, redemption metadata). Scoped to a business via foreign keys. |
-| **redemptions** | Audit trail of redemptions per user and coupon; supports duplicate prevention and **My Redemptions**. |
-
-**RLS** policies enforce who can read or insert/update rows by role and ownership so customer data and owner dashboards stay scoped correctly.
+> The legacy `restaurants` and `coupons` tables are no longer used by the web app.
 
 ---
 
-## Traction & partnerships
+## Community
 
-- **200+ active users** in the Mid-Maine / Waterville area.
-- Partnerships with the **Mid-Maine Chamber of Commerce** and **local businesses** that support adoption and surface offers to the community.
+Built for the Mid-Maine / Waterville community, Lokala works alongside the
+**Mid-Maine Chamber of Commerce** and local businesses to surface offers and keep
+spending close to home. The `events` table backs upcoming chamber and community
+listings.
 
 ---
 
@@ -123,14 +139,14 @@ PostgreSQL (via Supabase) centers on:
 
    Copy `.env.example` to `.env.local` and set:
 
-   - `NEXT_PUBLIC_SUPABASE_URL` — your Supabase project URL  
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous (public) key for client and server helpers  
+   - `NEXT_PUBLIC_SUPABASE_URL` — your Supabase project URL
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase publishable (anon) key
 
-   These are required for Auth, database queries, and Storage-backed features.
+3. **Database**
 
-3. **Database & storage**
-
-   Apply migrations under `supabase/migrations/` to your Supabase project so tables and **RLS** match the app. For logo uploads, ensure a public Storage bucket named **`restaurant-logos`** exists (or align bucket name with your migration/config).
+   Point at a Supabase project that uses the mobile schema in
+   [`docs/mobile-db-schema.md`](docs/mobile-db-schema.md). Apply the policies under
+   `supabase/migrations/` so anonymous visitors can read **active** deals.
 
 4. **Run the app**
 
@@ -149,13 +165,24 @@ PostgreSQL (via Supabase) centers on:
 
 ---
 
+## Deployment
+
+- **Hosting:** [Vercel](https://vercel.com) — production builds deploy from the
+  connected Git repository.
+- **Backend:** [Supabase](https://supabase.com) — PostgreSQL (data + RLS) and Auth.
+
+Set the same `NEXT_PUBLIC_SUPABASE_*` variables on Vercel as in local `.env.local` so
+the deployed app talks to your hosted Supabase project.
+
+---
+
 ## Roadmap
 
-- **Toast POS integration** — Attribute in-store transactions and revenue to platform-driven activity where businesses use Toast.
-- **Business analytics dashboard** — Deeper metrics beyond raw redemption counts for owners.
-- **Improved admin tooling** — Richer internal workflows as the operator surface matures.
-- **Search & filtering** — Faster discovery as the catalog grows.
-- **Mobile alignment** — UX and APIs structured so a future native or PWA experience stays consistent.
+- **Re-enable business dashboards** adapted to the deals schema.
+- **Surface community events** from the `events` table.
+- **Real gift-certificate checkout** with payment processing.
+- **Search & filtering** as the deal catalog grows.
+- **Toast POS integration** — attribute in-store activity to platform-driven visits.
 
 ---
 

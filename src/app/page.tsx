@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
 import RedeemDealButton from "@/components/deals/redeem-deal-button";
 import SaveDealButton from "@/components/deals/save-deal-button";
+import { HeroPlacard } from "@/components/marketplace/hero-placard";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, formatExpiry, type Deal } from "@/types/deal";
 
@@ -35,45 +35,6 @@ const actionCards = [
     icon: "🏪",
   },
 ] as const;
-
-function HeroImageCard() {
-  return (
-    <div className="relative">
-      <div className="absolute -left-5 -top-5 h-28 w-28 rounded-full bg-lokala-sun-soft blur-2xl" />
-      <div className="absolute -bottom-6 -right-4 h-32 w-32 rounded-full bg-lokala-green-light blur-2xl" />
-      <div className="relative overflow-hidden rounded-[2.5rem] border border-white bg-white p-3 shadow-lokala-card">
-        <div className="relative flex h-[340px] w-full flex-col items-center justify-center gap-5 overflow-hidden rounded-[2rem] bg-gradient-to-br from-lokala-green-soft via-lokala-cream to-lokala-sun-soft sm:h-[420px]">
-          <Image
-            src="/lokala-logo.png"
-            alt="Lokala"
-            width={120}
-            height={120}
-            className="h-24 w-24 rounded-3xl bg-white object-contain p-2 shadow-lokala-soft"
-          />
-          <div className="text-center">
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-lokala-green-dark">
-              Waterville · Maine
-            </p>
-            <p className="mt-1 font-heading text-2xl font-extrabold text-lokala-brown-dark">
-              Rooted in your community
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2 px-6">
-            <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-bold text-lokala-brown">
-              Pine-town charm
-            </span>
-            <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-bold text-lokala-green-dark">
-              Shop small
-            </span>
-            <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-bold text-lokala-sky-dark">
-              Local first
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default async function HomePage() {
   if (
@@ -198,7 +159,7 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <HeroImageCard />
+          <HeroPlacard />
         </div>
       </section>
 
