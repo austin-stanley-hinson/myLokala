@@ -113,8 +113,8 @@ export default async function HomePage() {
 
   return (
     <div className="w-full">
-      {/* Hero */}
-      <section className="bg-gradient-to-b from-lokala-green-soft via-lokala-cream to-lokala-cream-light px-4 py-14 sm:px-6 md:py-20">
+      {/* Hero — kept simple so the subtle global texture shows through. */}
+      <section className="px-4 py-14 sm:px-6 md:py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-[1.05fr_0.95fr]">
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-lokala-green-dark shadow-lokala-soft">
