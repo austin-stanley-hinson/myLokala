@@ -6,6 +6,7 @@ export type Deal = {
   id: string;
   business_name: string | null;
   title: string | null;
+  subtitle: string | null;
   discount_detail: string | null;
   category: string | null;
   is_active: boolean | null;
@@ -16,11 +17,19 @@ export type Deal = {
   longitude: number | null;
   phone: string | null;
   website: string | null;
+  owner_id: string | null;
 };
 
 /** Columns selected for deal listings (homepage / browse). */
 export const DEAL_LIST_COLUMNS =
   "id, business_name, title, discount_detail, category, is_active, expires_at, created_at, address, phone, website";
+
+/**
+ * Columns for the business owner dashboard — includes ownership and the
+ * editable `subtitle`, and surfaces inactive deals too.
+ */
+export const DEAL_OWNER_COLUMNS =
+  "id, business_name, title, subtitle, discount_detail, category, is_active, expires_at, created_at, address, phone, website, owner_id";
 
 /**
  * `expires_at` is a free-text column in the mobile schema — values are mostly

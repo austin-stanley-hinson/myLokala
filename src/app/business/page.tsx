@@ -1,8 +1,10 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { isBusinessOwner } from "@/lib/auth/business-profile";
+import { BusinessDealsManager } from "@/components/business/business-deals-manager";
+import { EditableBusinessProfile } from "@/components/business/editable-business-profile";
+import { DEAL_OWNER_COLUMNS, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
 
@@ -45,29 +47,40 @@ export default async function BusinessHomePage() {
     .eq("id", user.id)
     .maybeSingle<BusinessProfile>();
 
-  // A business owner whose profile row hasn't been confirmed as a business
-  // account yet is sent back to sign-in to complete the sync.
-  if (profile && profile.account_type && profile.account_type !== "business_owner") {
+  if (
+    profile &&
+    profile.account_type &&
+    profile.account_type !== "business_owner"
+  ) {
     redirect("/");
   }
 
+  const { data: dealRows } = await supabase
+    .from("deals")
+    .select(DEAL_OWNER_COLUMNS)
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false });
+
+  const deals = (dealRows ?? []) as Deal[];
+  const activeCount = deals.filter((deal) => deal.is_active).length;
+  const inactiveCount = deals.length - activeCount;
+
+  const ownerName =
+    profile?.full_name ?? (user.user_metadata?.full_name as string | undefined);
   const businessName =
     profile?.business_name ??
     (user.user_metadata?.business_name as string | undefined) ??
     "Your business";
-  const ownerName =
-    profile?.full_name ?? (user.user_metadata?.full_name as string | undefined);
 
-  const details: { label: string; value: string | null }[] = [
-    { label: "Business name", value: profile?.business_name ?? null },
-    { label: "Address", value: profile?.business_address ?? null },
-    { label: "Phone", value: profile?.business_phone ?? null },
-    { label: "Website", value: profile?.business_website ?? null },
+  const stats = [
+    { label: "Total deals", value: deals.length },
+    { label: "Active", value: activeCount },
+    { label: "Inactive", value: inactiveCount },
   ];
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-16 sm:px-6">
-      <div>
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-4 py-12 sm:px-6">
+      <header>
         <p className="text-sm font-bold uppercase tracking-[0.18em] text-lokala-green-dark">
           Business dashboard
         </p>
@@ -75,43 +88,49 @@ export default async function BusinessHomePage() {
           Welcome{ownerName ? `, ${ownerName}` : ""}.
         </h1>
         <p className="mt-2 text-sm leading-6 text-lokala-muted">
-          You&apos;re signed in to{" "}
-          <span className="font-bold text-lokala-brown-dark">{businessName}</span>
-          . Manage how your business shows up to local customers across
-          Waterville.
+          Managing{" "}
+          <span className="font-bold text-lokala-brown-dark">
+            {businessName}
+          </span>{" "}
+          on Lokala.
         </p>
-      </div>
+      </header>
 
-      <section className="rounded-3xl border border-lokala-border bg-white p-6 shadow-lokala-card">
+      <section id="activity" className="scroll-mt-24">
         <h2 className="text-lg font-extrabold text-lokala-brown-dark">
-          Business details
+          Activity
         </h2>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-          {details.map((item) => (
-            <div key={item.label}>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-3xl border border-lokala-border bg-white p-5 shadow-lokala-card"
+            >
               <dt className="text-xs font-bold uppercase tracking-wide text-lokala-muted">
-                {item.label}
+                {stat.label}
               </dt>
-              <dd className="mt-1 text-sm font-semibold text-lokala-brown-dark">
-                {item.value ?? (
-                  <span className="font-normal text-lokala-muted">
-                    Not added yet
-                  </span>
-                )}
+              <dd className="mt-1 text-3xl font-extrabold text-lokala-green-dark">
+                {stat.value}
               </dd>
             </div>
           ))}
         </dl>
       </section>
 
-      <div>
-        <Link
-          href="/"
-          className="inline-block rounded-full border border-lokala-border bg-white px-6 py-3 text-sm font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
-        >
-          Back to home
-        </Link>
-      </div>
+      <BusinessDealsManager
+        initialDeals={deals}
+        ownerId={user.id}
+        defaultBusinessName={profile?.business_name ?? null}
+      />
+
+      <EditableBusinessProfile
+        initial={{
+          business_name: profile?.business_name ?? null,
+          business_address: profile?.business_address ?? null,
+          business_phone: profile?.business_phone ?? null,
+          business_website: profile?.business_website ?? null,
+        }}
+      />
     </div>
   );
 }

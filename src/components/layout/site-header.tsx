@@ -10,6 +10,7 @@ import type { AuthChangeEvent, User } from "@supabase/supabase-js";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { buttonVariants } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { isBusinessOwner } from "@/lib/auth/business-profile";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string };
@@ -111,13 +112,26 @@ export function SiteHeader() {
     "block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted";
 
   // Primary nav links, derived from auth state (shared by desktop + mobile).
-  const navItems: NavItem[] = [
-    { href: "/", label: "Home" },
-    { href: "/browse", label: "Browse Deals" },
-    { href: "/gift-certificates", label: "Gift Certificates" },
-    { href: "/signup", label: "For Businesses" },
-  ];
-  if (ready && user) {
+  // Signed-in business owners get the B2B navigation; everyone else sees the
+  // customer-facing marketplace links.
+  const businessOwner = ready && isBusinessOwner(user);
+
+  const navItems: NavItem[] = businessOwner
+    ? [
+        { href: "/business", label: "Dashboard" },
+        { href: "/business#deals", label: "Deals" },
+        { href: "/business#activity", label: "Activity" },
+        { href: "/business#profile", label: "Business Profile" },
+      ]
+    : [
+        { href: "/", label: "Home" },
+        { href: "/browse", label: "Browse Deals" },
+        { href: "/gift-certificates", label: "Gift Certificates" },
+        { href: "/signup", label: "For Businesses" },
+      ];
+
+  // Customers (not business owners) keep their redemptions link.
+  if (ready && user && !businessOwner) {
     navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
   }
 

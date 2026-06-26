@@ -24,8 +24,18 @@ fetch active deals from here (`is_active = true`).
 | longitude       | numeric, nullable                      |
 | phone           | text, nullable                         |
 | website         | text, nullable                         |
+| subtitle        | text, nullable — short tagline shown on deal cards (added for web business dashboard) |
+| owner_id        | uuid, nullable — references `auth.users(id)`; set on deals created by a business owner via the web dashboard |
 
 > Note: there is **no** `description`, `image_url`, or `terms` column on `deals`.
+>
+> `subtitle` and `owner_id` were added by migration
+> `20260625_add_owner_and_subtitle_to_deals.sql` to support the web business
+> dashboard. Both are additive/nullable so existing mobile rows stay valid.
+>
+> **RLS:** public (anon + authenticated) read of active deals is preserved.
+> Business owners may `select`/`insert`/`update`/`delete` only their own deals
+> (`auth.uid() = owner_id`).
 
 ## `redemptions`
 A row is inserted when a user redeems a deal. Denormalized snapshot columns capture
