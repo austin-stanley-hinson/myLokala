@@ -53,13 +53,26 @@ Bookmarking / saving deals.
 | created_at | timestamp            |
 
 ## `profiles`
-| column      | notes                       |
-|-------------|-----------------------------|
-| id          | references auth user        |
-| full_name   | text                        |
-| member_id   | membership identifier       |
-| member_type | membership tier/type        |
-| created_at  | timestamp                   |
+| column           | notes                                                        |
+|------------------|--------------------------------------------------------------|
+| id               | references auth user                                         |
+| full_name        | text                                                         |
+| member_id        | membership identifier                                        |
+| member_type      | membership tier/type                                         |
+| created_at       | timestamp                                                    |
+| account_type     | text, not null, default `'customer'`; check in (`'customer'`, `'business_owner'`) |
+| business_name    | text, nullable — set for business owners                     |
+| business_address | text, nullable — set for business owners                     |
+| business_phone   | text, nullable — set for business owners                     |
+| business_website | text, nullable — set for business owners                     |
+
+> Business owner vs. customer is tracked on `profiles.account_type` (see
+> migration `20260625_add_business_account_fields_to_profiles.sql`). The
+> `business_*` fields are only meaningful when `account_type = 'business_owner'`.
+>
+> **RLS:** row level security is enabled; authenticated users may only
+> `select`/`update` their own profile row (`auth.uid() = id`), which scopes the
+> business fields to the owning user.
 
 ## `events`
 Chamber / local events. Currently a minimal stub in the mobile schema.
