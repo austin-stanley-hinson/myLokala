@@ -11,16 +11,6 @@ const PAYMENT_METHODS = [
     title: "Credit or Debit Card",
     body: "Pay securely with card.",
   },
-  {
-    id: "paypal",
-    title: "PayPal",
-    body: "Use a PayPal-style payment flow.",
-  },
-  {
-    id: "venmo",
-    title: "Venmo",
-    body: "Use a Venmo-style payment flow.",
-  },
 ] as const;
 
 type PaymentMethodId = (typeof PAYMENT_METHODS)[number]["id"];
@@ -41,13 +31,11 @@ export default function GiftCertificatesPage() {
   const [note, setNote] = useState("");
   const [method, setMethod] = useState<PaymentMethodId>("card");
 
-  const { lokalaFee, paymentFee, total } = useMemo(() => {
-    const lokala = Math.round(amount * 0.02 * 100) / 100;
-    const payment = Math.round(amount * 0.008 * 100) / 100;
+  const { processingFee, total } = useMemo(() => {
+    const fee = Math.round(amount * 0.04 * 100) / 100;
     return {
-      lokalaFee: lokala,
-      paymentFee: payment,
-      total: amount + lokala + payment,
+      processingFee: fee,
+      total: amount + fee,
     };
   }, [amount]);
 
@@ -267,12 +255,8 @@ export default function GiftCertificatesPage() {
                     <span className="font-bold">{currency(amount)}</span>
                   </div>
                   <div className="flex justify-between text-lokala-muted">
-                    <span>Lokala fee</span>
-                    <span>{currency(lokalaFee)}</span>
-                  </div>
-                  <div className="flex justify-between text-lokala-muted">
-                    <span>Payment fee</span>
-                    <span>{currency(paymentFee)}</span>
+                    <span>Payment Processing Fee</span>
+                    <span>{currency(processingFee)}</span>
                   </div>
 
                   <div className="border-t border-lokala-border pt-4">
