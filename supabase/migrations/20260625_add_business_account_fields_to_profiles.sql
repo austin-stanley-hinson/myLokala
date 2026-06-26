@@ -49,3 +49,12 @@ for update
 to authenticated
 using (auth.uid() = id)
 with check (auth.uid() = id);
+
+-- Allow users to create their own profile row (used by business onboarding to
+-- persist business fields if no row exists yet). Still scoped to the caller.
+drop policy if exists "Users can insert own profile" on public.profiles;
+create policy "Users can insert own profile"
+on public.profiles
+for insert
+to authenticated
+with check (auth.uid() = id);

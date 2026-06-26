@@ -71,8 +71,9 @@ Bookmarking / saving deals.
 > `business_*` fields are only meaningful when `account_type = 'business_owner'`.
 >
 > **RLS:** row level security is enabled; authenticated users may only
-> `select`/`update` their own profile row (`auth.uid() = id`), which scopes the
-> business fields to the owning user.
+> `select`/`insert`/`update` their own profile row (`auth.uid() = id`), which
+> scopes the business fields to the owning user. The `insert` policy lets the
+> business onboarding flow create the profile row when one does not exist yet.
 
 ## `events`
 Chamber / local events. Currently a minimal stub in the mobile schema.

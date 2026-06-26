@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { isBusinessOwner, syncBusinessProfile } from "@/lib/auth/business-profile";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,14 +41,16 @@ export default function LoginPage() {
         return;
       }
 
-      // Customers use the mobile app; the website's sign-in is for businesses.
-      // Role lives in auth user metadata (set at sign-up); profiles has no role column.
-      const destination =
-        user.user_metadata?.role === "restaurant_owner"
-          ? "/restaurant/dashboard"
-          : "/";
-
-      router.replace(destination);
+      // The website's sign-in is for businesses; customers use the mobile app.
+      // Business owners are routed into the business area; everyone else lands
+      // on the public home page so customers never enter the dashboard.
+      if (isBusinessOwner(user)) {
+        // Keep the profile row in sync with the account's business metadata.
+        await syncBusinessProfile(supabase, user);
+        router.replace("/business");
+      } else {
+        router.replace("/");
+      }
       router.refresh();
     } catch (err) {
       setError(
