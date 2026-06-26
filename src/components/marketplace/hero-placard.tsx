@@ -11,6 +11,10 @@ const PHOTOS = [
   "/w6.jpg",
   "/w7.jpg",
   "/w8.jpg",
+  "/w9.jpg",
+  "/w10.jpg",
+  "/w11.jpg",
+  "/w12.jpg",
 ];
 
 const SLIDE_COUNT = PHOTOS.length + 1; // + branded intro
@@ -22,8 +26,11 @@ const INTERVAL_MS = 5000;
  */
 export function HeroPlacard() {
   const [active, setActive] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    // Trigger the initial dissolve-in once mounted on the client.
+    setLoaded(true);
     const id = setInterval(() => {
       setActive((prev) => (prev + 1) % SLIDE_COUNT);
     }, INTERVAL_MS);
@@ -31,16 +38,20 @@ export function HeroPlacard() {
   }, []);
 
   const slideClass = (isActive: boolean) =>
-    `absolute inset-0 transition-opacity duration-[1500ms] ease-in-out ${
+    `absolute inset-0 transition-opacity duration-[2000ms] ease-in-out ${
       isActive ? "opacity-100" : "opacity-0"
     }`;
 
   return (
-    <div className="relative">
+    <div
+      className={`relative transition-opacity duration-[1200ms] ease-out ${
+        loaded ? "opacity-100" : "opacity-0"
+      }`}
+    >
       <div className="absolute -left-5 -top-5 h-28 w-28 rounded-full bg-lokala-sun-soft blur-2xl" />
       <div className="absolute -bottom-6 -right-4 h-32 w-32 rounded-full bg-lokala-green-light blur-2xl" />
       <div className="relative overflow-hidden rounded-[2.5rem] border border-white bg-white p-3 shadow-lokala-card">
-        <div className="relative h-[340px] w-full overflow-hidden rounded-[2rem] sm:h-[420px]">
+        <div className="relative h-[400px] w-full overflow-hidden rounded-[2rem] sm:h-[500px] lg:h-[540px]">
           {/* Slide 0 — branded intro */}
           <div
             aria-hidden={active !== 0}
