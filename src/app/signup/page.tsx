@@ -2,16 +2,23 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
-
-// The website's sign-up flow is for businesses only. Customers use the mobile app.
-const BUSINESS_ROLE = "restaurant_owner";
+import {
+  BUSINESS_ACCOUNT_TYPE,
+  syncBusinessProfile,
+} from "@/lib/auth/business-profile";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [businessAddress, setBusinessAddress] = useState("");
+  const [businessPhone, setBusinessPhone] = useState("");
+  const [businessWebsite, setBusinessWebsite] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -24,13 +31,17 @@ export default function SignupPage() {
 
     try {
       const supabase = createClient();
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            full_name: fullName,
-            role: BUSINESS_ROLE,
+            full_name: fullName.trim(),
+            account_type: BUSINESS_ACCOUNT_TYPE,
+            business_name: businessName.trim(),
+            business_address: businessAddress.trim(),
+            business_phone: businessPhone.trim(),
+            business_website: businessWebsite.trim(),
           },
         },
       });
@@ -40,8 +51,27 @@ export default function SignupPage() {
         return;
       }
 
+      // When email confirmation is disabled, sign-up returns an active session.
+      // Persist the business profile now and head straight to the dashboard.
+      if (data.session && data.user) {
+        const { error: profileError } = await syncBusinessProfile(
+          supabase,
+          data.user,
+        );
+        if (profileError) {
+          setError(profileError.message);
+          return;
+        }
+
+        router.replace("/business");
+        router.refresh();
+        return;
+      }
+
+      // Otherwise confirmation is required; the profile is written on first
+      // sign-in once a session exists.
       setSuccess(
-        "Account created. Check your email if confirmation is required, then sign in.",
+        "Business account created. Check your email to confirm it, then sign in.",
       );
     } catch (err) {
       setError(
@@ -53,6 +83,9 @@ export default function SignupPage() {
       setLoading(false);
     }
   }
+
+  const fieldClass =
+    "rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-16 sm:px-6">
@@ -77,7 +110,7 @@ export default function SignupPage() {
             required
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+            className={fieldClass}
           />
         </div>
 
@@ -93,7 +126,7 @@ export default function SignupPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+            className={fieldClass}
           />
         </div>
 
@@ -110,9 +143,78 @@ export default function SignupPage() {
             minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+            className={fieldClass}
           />
         </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="businessName" className="text-sm font-medium">
+            Business name
+          </label>
+          <input
+            id="businessName"
+            name="businessName"
+            type="text"
+            autoComplete="organization"
+            required
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            className={fieldClass}
+          />
+        </div>
+
+        <details className="rounded-lg border border-input bg-background/50 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+            Add business details (optional)
+          </summary>
+          <div className="mt-3 flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="businessAddress" className="text-sm font-medium">
+                Business address
+              </label>
+              <input
+                id="businessAddress"
+                name="businessAddress"
+                type="text"
+                autoComplete="street-address"
+                value={businessAddress}
+                onChange={(e) => setBusinessAddress(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="businessPhone" className="text-sm font-medium">
+                Business phone
+              </label>
+              <input
+                id="businessPhone"
+                name="businessPhone"
+                type="tel"
+                autoComplete="tel"
+                value={businessPhone}
+                onChange={(e) => setBusinessPhone(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="businessWebsite" className="text-sm font-medium">
+                Business website
+              </label>
+              <input
+                id="businessWebsite"
+                name="businessWebsite"
+                type="url"
+                autoComplete="url"
+                placeholder="https://"
+                value={businessWebsite}
+                onChange={(e) => setBusinessWebsite(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+          </div>
+        </details>
 
         {error ? (
           <p
@@ -143,7 +245,10 @@ export default function SignupPage() {
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have a business account?{" "}
-        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link
+          href="/login"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
           Business sign in
         </Link>
       </p>
