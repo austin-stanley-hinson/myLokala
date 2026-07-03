@@ -18,6 +18,12 @@ type BusinessProfile = {
   business_website: string | null;
 };
 
+type PaymentAccount = {
+  onboarding_status: string | null;
+  charges_enabled: boolean | null;
+  payouts_enabled: boolean | null;
+};
+
 export default async function BusinessHomePage() {
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -61,6 +67,12 @@ export default async function BusinessHomePage() {
     .select(DEAL_OWNER_COLUMNS)
     .eq("owner_id", user.id)
     .order("created_at", { ascending: false });
+
+  const { data: paymentAccount } = await supabase
+    .from("business_payment_accounts")
+    .select("onboarding_status, charges_enabled, payouts_enabled")
+    .eq("owner_id", user.id)
+    .maybeSingle<PaymentAccount>();
 
   const deals = (dealRows ?? []) as Deal[];
   const activeCount = deals.filter((deal) => deal.is_active).length;
@@ -106,7 +118,11 @@ export default async function BusinessHomePage() {
         }}
       />
 
-      <StripeConnectCard />
+      <StripeConnectCard
+        onboardingStatus={paymentAccount?.onboarding_status ?? null}
+        chargesEnabled={Boolean(paymentAccount?.charges_enabled)}
+        payoutsEnabled={Boolean(paymentAccount?.payouts_enabled)}
+      />
 
       <BusinessDealsManager
         initialDeals={deals}
