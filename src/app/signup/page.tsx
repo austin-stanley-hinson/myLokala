@@ -113,8 +113,9 @@ export default function SignupPage() {
         List your business on Lokala
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Create a business account to publish deals and reach local customers.
-        Customers browse and redeem deals in the Lokala mobile app.
+        Lokala web accounts are for businesses. Create yours to manage your
+        business, connect payments, and publish gift certificates. Shopping for
+        deals? Customers browse and buy in the Lokala mobile app.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
