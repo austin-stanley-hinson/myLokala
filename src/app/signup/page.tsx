@@ -54,6 +54,9 @@ export default function SignupPage() {
         email,
         password,
         options: {
+          // After confirming their email, business owners return through our
+          // auth callback, which lands them on the dashboard.
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/business`,
           data: {
             full_name: fullName.trim(),
             account_type: BUSINESS_ACCOUNT_TYPE,
@@ -88,10 +91,10 @@ export default function SignupPage() {
         return;
       }
 
-      // Otherwise confirmation is required; the profile is written on first
-      // sign-in once a session exists.
+      // Otherwise confirmation is required; the profile is reconciled when the
+      // user returns through /auth/callback after confirming.
       setSuccess(
-        "Business account created. Check your email to confirm it, then sign in.",
+        "Check your email to confirm your account. After confirming, you'll be redirected to your business dashboard.",
       );
     } catch (err) {
       setError(
