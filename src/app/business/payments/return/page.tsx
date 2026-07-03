@@ -48,7 +48,7 @@ export default async function PaymentsReturnPage() {
 
   // Nothing to refresh without a connected account — send them back to start.
   if (!account?.stripe_account_id) {
-    redirect("/business#payments");
+    redirect("/business/payments");
   }
 
   let charges_enabled = false;
@@ -128,7 +128,7 @@ export default async function PaymentsReturnPage() {
         <p className="mt-3 text-sm leading-6 text-lokala-muted">{body}</p>
 
         <Link
-          href="/business#payments"
+          href="/business/payments"
           className="mt-6 inline-flex rounded-full bg-lokala-green px-5 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark"
         >
           Back to dashboard

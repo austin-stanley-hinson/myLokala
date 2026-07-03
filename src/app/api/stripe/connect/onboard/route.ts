@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       account: accountId,
       type: "account_onboarding",
       return_url: `${origin}/business/payments/return`,
-      refresh_url: `${origin}/business#payments`,
+      refresh_url: `${origin}/business/payments`,
     });
 
     return NextResponse.json({ url: accountLink.url });
