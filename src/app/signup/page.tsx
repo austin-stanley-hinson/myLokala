@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   BUSINESS_ACCOUNT_TYPE,
-  syncBusinessProfile,
+  ensureBusinessProfile,
 } from "@/lib/auth/business-profile";
 
 export default function SignupPage() {
@@ -52,9 +52,9 @@ export default function SignupPage() {
       }
 
       // When email confirmation is disabled, sign-up returns an active session.
-      // Persist the business profile now and head straight to the dashboard.
+      // Create the business profile row now and head straight to the dashboard.
       if (data.session && data.user) {
-        const { error: profileError } = await syncBusinessProfile(
+        const { error: profileError } = await ensureBusinessProfile(
           supabase,
           data.user,
         );

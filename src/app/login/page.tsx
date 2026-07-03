@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
-import { isBusinessOwner, syncBusinessProfile } from "@/lib/auth/business-profile";
+import {
+  ensureBusinessProfile,
+  isBusinessOwner,
+} from "@/lib/auth/business-profile";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,8 +48,10 @@ export default function LoginPage() {
       // Business owners are routed into the business area; everyone else lands
       // on the public home page so customers never enter the dashboard.
       if (isBusinessOwner(user)) {
-        // Keep the profile row in sync with the account's business metadata.
-        await syncBusinessProfile(supabase, user);
+        // Create the profile row on first sign-in (e.g. after email
+        // confirmation) if it does not exist yet. Existing rows are left
+        // untouched so dashboard edits are never overwritten.
+        await ensureBusinessProfile(supabase, user);
         router.replace("/business");
       } else {
         router.replace("/");

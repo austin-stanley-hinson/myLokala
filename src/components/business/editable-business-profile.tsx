@@ -82,6 +82,18 @@ export function EditableBusinessProfile({
         return;
       }
 
+      // Mirror the change into auth metadata so it does not grow stale. The
+      // profiles table remains the source of truth for the dashboard, so this
+      // is best-effort and a failure here should not block the save.
+      await supabase.auth.updateUser({
+        data: {
+          business_name: next.business_name,
+          business_address: next.business_address,
+          business_phone: next.business_phone,
+          business_website: next.business_website,
+        },
+      });
+
       setValues(next);
       setEditing(false);
       router.refresh();

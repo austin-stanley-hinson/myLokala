@@ -1,4 +1,8 @@
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type {
+  PostgrestError,
+  SupabaseClient,
+  User,
+} from "@supabase/supabase-js";
 
 export const BUSINESS_ACCOUNT_TYPE = "business_owner";
 
@@ -27,28 +31,50 @@ const toText = (value: unknown): string | null =>
   typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 
 /**
- * Create or update the signed-in user's profile row from their auth metadata,
- * marking them as a business owner. Auth metadata captured at sign-up is the
- * source of truth for the business fields.
+ * Ensure the signed-in user has a business profile row, creating it from auth
+ * metadata only when one does not exist yet.
+ *
+ * The `profiles` table is the source of truth for editable business details, so
+ * once a row exists this leaves it untouched — dashboard edits must never be
+ * clobbered by (possibly stale) auth metadata on a later login.
  *
  * Requires an authenticated session (RLS scopes writes to `auth.uid() = id`).
+ *
+ * Returns `{ error }` mirroring the shape of a Supabase query result.
  */
-export async function syncBusinessProfile(
+export async function ensureBusinessProfile(
   supabase: SupabaseClient,
   user: User,
-) {
+): Promise<{ error: PostgrestError | null }> {
+  // A row is only ever visible to its owner (RLS), so this scopes to the
+  // current user without an explicit filter beyond the id.
+  const { data: existing, error: lookupError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    return { error: lookupError };
+  }
+
+  // Row already exists — treat the profiles table as authoritative and do not
+  // overwrite the business fields from auth metadata.
+  if (existing) {
+    return { error: null };
+  }
+
   const meta = user.user_metadata ?? {};
 
-  return supabase.from("profiles").upsert(
-    {
-      id: user.id,
-      full_name: toText(meta.full_name),
-      account_type: BUSINESS_ACCOUNT_TYPE,
-      business_name: toText(meta.business_name),
-      business_address: toText(meta.business_address),
-      business_phone: toText(meta.business_phone),
-      business_website: toText(meta.business_website),
-    },
-    { onConflict: "id" },
-  );
+  const { error: insertError } = await supabase.from("profiles").insert({
+    id: user.id,
+    full_name: toText(meta.full_name),
+    account_type: BUSINESS_ACCOUNT_TYPE,
+    business_name: toText(meta.business_name),
+    business_address: toText(meta.business_address),
+    business_phone: toText(meta.business_phone),
+    business_website: toText(meta.business_website),
+  });
+
+  return { error: insertError };
 }
