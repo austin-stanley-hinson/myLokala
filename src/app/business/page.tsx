@@ -1,81 +1,44 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
+import { CreditCard, Gift, Store } from "lucide-react";
 
-import { createClient } from "@/lib/supabase/server";
-import { isBusinessOwner } from "@/lib/auth/business-profile";
-import { BusinessDealsManager } from "@/components/business/business-deals-manager";
-import { EditableBusinessProfile } from "@/components/business/editable-business-profile";
-import { DEAL_OWNER_COLUMNS, type Deal } from "@/types/deal";
+import { getBusinessContext, isPaymentsConnected } from "@/lib/auth/business-context";
 
 export const dynamic = "force-dynamic";
 
-type BusinessProfile = {
-  full_name: string | null;
-  account_type: string | null;
-  business_name: string | null;
-  business_address: string | null;
-  business_phone: string | null;
-  business_website: string | null;
-};
+export default async function BusinessOverviewPage() {
+  const { ownerName, businessName, paymentAccount } = await getBusinessContext();
 
-export default async function BusinessHomePage() {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    redirect("/login");
-  }
+  const connected = isPaymentsConnected(paymentAccount);
+  const paymentsHint = connected
+    ? "Connected — ready for payouts"
+    : paymentAccount?.onboarding_status === "restricted"
+      ? "Action needed to finish setup"
+      : paymentAccount?.onboarding_status === "pending"
+        ? "Verification in progress"
+        : "Not connected yet";
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  // Customers must never reach the business dashboard.
-  if (!isBusinessOwner(user)) {
-    redirect("/");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "full_name, account_type, business_name, business_address, business_phone, business_website",
-    )
-    .eq("id", user.id)
-    .maybeSingle<BusinessProfile>();
-
-  if (
-    profile &&
-    profile.account_type &&
-    profile.account_type !== "business_owner"
-  ) {
-    redirect("/");
-  }
-
-  const { data: dealRows } = await supabase
-    .from("deals")
-    .select(DEAL_OWNER_COLUMNS)
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false });
-
-  const deals = (dealRows ?? []) as Deal[];
-  const activeCount = deals.filter((deal) => deal.is_active).length;
-  const inactiveCount = deals.length - activeCount;
-
-  const ownerName =
-    profile?.full_name ?? (user.user_metadata?.full_name as string | undefined);
-  const businessName =
-    profile?.business_name ??
-    (user.user_metadata?.business_name as string | undefined) ??
-    "Your business";
-
-  const stats = [
-    { label: "Total deals", value: deals.length },
-    { label: "Active", value: activeCount },
-    { label: "Inactive", value: inactiveCount },
+  const cards = [
+    {
+      href: "/business/profile",
+      label: "Business profile",
+      description: "Update your business name, address, phone, and website.",
+      hint: businessName,
+      icon: Store,
+    },
+    {
+      href: "/business/payments",
+      label: "Payments",
+      description: "Connect Stripe to accept payments and receive payouts.",
+      hint: paymentsHint,
+      icon: CreditCard,
+    },
+    {
+      href: "/business/gift-certificates",
+      label: "Gift certificates",
+      description: "Publish gift certificates for local customers to buy.",
+      hint: "Coming soon",
+      icon: Gift,
+    },
   ];
 
   return (
@@ -96,41 +59,37 @@ export default async function BusinessHomePage() {
         </p>
       </header>
 
-      <section id="activity" className="scroll-mt-24">
+      <section>
         <h2 className="text-lg font-extrabold text-lokala-brown-dark">
-          Activity
+          Manage your business
         </h2>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-3xl border border-lokala-border bg-white p-5 shadow-lokala-card"
-            >
-              <dt className="text-xs font-bold uppercase tracking-wide text-lokala-muted">
-                {stat.label}
-              </dt>
-              <dd className="mt-1 text-3xl font-extrabold text-lokala-green-dark">
-                {stat.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <ul className="mt-4 grid gap-4 sm:grid-cols-3">
+          {cards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <li key={card.href}>
+                <Link
+                  href={card.href}
+                  className="flex h-full flex-col rounded-3xl border border-lokala-border bg-white p-5 shadow-lokala-card transition hover:border-lokala-green hover:shadow-lokala-soft"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-lokala-green-light text-lokala-green-dark">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <h3 className="mt-4 text-base font-extrabold text-lokala-brown-dark">
+                    {card.label}
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-lokala-muted">
+                    {card.description}
+                  </p>
+                  <p className="mt-3 text-xs font-bold uppercase tracking-wide text-lokala-green-dark">
+                    {card.hint}
+                  </p>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </section>
-
-      <BusinessDealsManager
-        initialDeals={deals}
-        ownerId={user.id}
-        defaultBusinessName={profile?.business_name ?? null}
-      />
-
-      <EditableBusinessProfile
-        initial={{
-          business_name: profile?.business_name ?? null,
-          business_address: profile?.business_address ?? null,
-          business_phone: profile?.business_phone ?? null,
-          business_website: profile?.business_website ?? null,
-        }}
-      />
     </div>
   );
 }

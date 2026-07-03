@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 import {
   BUSINESS_ACCOUNT_TYPE,
-  ensureBusinessProfile,
+  resolveBusinessOwner,
+  upsertBusinessProfileFromMetadata,
 } from "@/lib/auth/business-profile";
 
 export default function SignupPage() {
@@ -22,6 +23,24 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // An already-signed-in business owner should go straight to their dashboard.
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (cancelled || !user) return;
+      if (await resolveBusinessOwner(supabase, user)) {
+        if (!cancelled) router.replace("/business");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -52,9 +71,10 @@ export default function SignupPage() {
       }
 
       // When email confirmation is disabled, sign-up returns an active session.
-      // Create the business profile row now and head straight to the dashboard.
+      // Write the business profile now (authoritatively, so a default
+      // 'customer' row gets promoted) and head straight to the dashboard.
       if (data.session && data.user) {
-        const { error: profileError } = await ensureBusinessProfile(
+        const { error: profileError } = await upsertBusinessProfileFromMetadata(
           supabase,
           data.user,
         );
