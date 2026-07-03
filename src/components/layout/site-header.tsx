@@ -10,7 +10,10 @@ import type { AuthChangeEvent, User } from "@supabase/supabase-js";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { buttonVariants } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import { isBusinessOwner } from "@/lib/auth/business-profile";
+import {
+  isBusinessOwner,
+  resolveBusinessOwner,
+} from "@/lib/auth/business-profile";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string };
@@ -25,6 +28,7 @@ export function SiteHeader() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [businessOwner, setBusinessOwner] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
@@ -99,6 +103,26 @@ export function SiteHeader() {
     };
   }, []);
 
+  // Resolve business ownership from the profiles table (source of truth), with
+  // an optimistic metadata check first to avoid a nav flicker for owners.
+  useEffect(() => {
+    if (!user) {
+      setBusinessOwner(false);
+      return;
+    }
+
+    setBusinessOwner(isBusinessOwner(user));
+
+    const supabase = createClient();
+    let cancelled = false;
+    void resolveBusinessOwner(supabase, user).then((result) => {
+      if (!cancelled) setBusinessOwner(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   async function handleSignOut() {
     setMenuOpen(false);
     setMobileOpen(false);
@@ -112,16 +136,16 @@ export function SiteHeader() {
     "block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted";
 
   // Primary nav links, derived from auth state (shared by desktop + mobile).
-  // Signed-in business owners get the B2B navigation; everyone else sees the
-  // customer-facing marketplace links.
-  const businessOwner = ready && isBusinessOwner(user);
+  // Signed-in business owners get the B2B navigation into the dashboard
+  // sections; everyone else sees the customer-facing marketplace links.
+  const isBusinessNav = ready && businessOwner;
 
-  const navItems: NavItem[] = businessOwner
+  const navItems: NavItem[] = isBusinessNav
     ? [
         { href: "/business", label: "Dashboard" },
-        { href: "/business#deals", label: "Deals" },
-        { href: "/business#activity", label: "Activity" },
-        { href: "/business#profile", label: "Business Profile" },
+        { href: "/business#payments", label: "Payments" },
+        { href: "/business#gift-certificates", label: "Gift Certificates" },
+        { href: "/business#profile", label: "Profile" },
       ]
     : [
         { href: "/", label: "Home" },
@@ -131,7 +155,7 @@ export function SiteHeader() {
       ];
 
   // Customers (not business owners) keep their redemptions link.
-  if (ready && user && !businessOwner) {
+  if (ready && user && !isBusinessNav) {
     navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
   }
 

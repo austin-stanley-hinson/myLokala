@@ -15,8 +15,10 @@ type MetadataUser = {
 } | null;
 
 /**
- * Whether the signed-in user is a business owner. Reads from auth user
- * metadata so it can run before the profile row is loaded.
+ * Whether the signed-in user is a business owner based on auth user metadata.
+ * Synchronous and works before the profile row is loaded, so it's a good
+ * fallback / optimistic check — but `profiles.account_type` is authoritative
+ * (see `resolveBusinessOwner`).
  */
 export function isBusinessOwner(user: MetadataUser): boolean {
   if (!user) return false;
@@ -25,6 +27,34 @@ export function isBusinessOwner(user: MetadataUser): boolean {
     meta.account_type === BUSINESS_ACCOUNT_TYPE ||
     meta.role === LEGACY_BUSINESS_ROLE
   );
+}
+
+/**
+ * Resolve business ownership using the `profiles` table as the source of truth,
+ * falling back to auth metadata when no profile row (or account_type) exists
+ * yet — e.g. on the very first sign-in before `ensureBusinessProfile` runs.
+ *
+ * Requires an authenticated session (RLS scopes the read to `auth.uid() = id`).
+ */
+export async function resolveBusinessOwner(
+  supabase: SupabaseClient,
+  user: User | null,
+): Promise<boolean> {
+  if (!user) return false;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("account_type")
+    .eq("id", user.id)
+    .maybeSingle<{ account_type: string | null }>();
+
+  // profiles is authoritative when it has an account_type.
+  if (!error && data?.account_type) {
+    return data.account_type === BUSINESS_ACCOUNT_TYPE;
+  }
+
+  // No row / no account_type yet (or a read error) — fall back to metadata.
+  return isBusinessOwner(user);
 }
 
 const toText = (value: unknown): string | null =>

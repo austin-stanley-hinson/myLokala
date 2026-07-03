@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { isBusinessOwner } from "@/lib/auth/business-profile";
+import {
+  BUSINESS_ACCOUNT_TYPE,
+  isBusinessOwner,
+} from "@/lib/auth/business-profile";
 import { EditableBusinessProfile } from "@/components/business/editable-business-profile";
 import { GiftCertificatesSection } from "@/components/business/gift-certificates-section";
 import { StripeConnectCard } from "@/components/business/stripe-connect-card";
@@ -40,11 +43,6 @@ export default async function BusinessHomePage() {
     redirect("/login");
   }
 
-  // Customers must never reach the business dashboard.
-  if (!isBusinessOwner(user)) {
-    redirect("/");
-  }
-
   const { data: profile } = await supabase
     .from("profiles")
     .select(
@@ -53,11 +51,14 @@ export default async function BusinessHomePage() {
     .eq("id", user.id)
     .maybeSingle<BusinessProfile>();
 
-  if (
-    profile &&
-    profile.account_type &&
-    profile.account_type !== "business_owner"
-  ) {
+  // Customers must never reach the business dashboard. The profiles table is
+  // the source of truth for account_type; fall back to auth metadata only when
+  // no profile account_type exists yet (e.g. first sign-in).
+  const isOwner = profile?.account_type
+    ? profile.account_type === BUSINESS_ACCOUNT_TYPE
+    : isBusinessOwner(user);
+
+  if (!isOwner) {
     redirect("/");
   }
 

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 import {
   ensureBusinessProfile,
-  isBusinessOwner,
+  resolveBusinessOwner,
 } from "@/lib/auth/business-profile";
 
 export default function LoginPage() {
@@ -16,6 +16,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A business owner who is already signed in shouldn't sit on the login page.
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (cancelled || !user) return;
+      if (await resolveBusinessOwner(supabase, user)) {
+        if (!cancelled) router.replace("/business");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,7 +65,7 @@ export default function LoginPage() {
       // The website's sign-in is for businesses; customers use the mobile app.
       // Business owners are routed into the business area; everyone else lands
       // on the public home page so customers never enter the dashboard.
-      if (isBusinessOwner(user)) {
+      if (await resolveBusinessOwner(supabase, user)) {
         // Create the profile row on first sign-in (e.g. after email
         // confirmation) if it does not exist yet. Existing rows are left
         // untouched so dashboard edits are never overwritten.

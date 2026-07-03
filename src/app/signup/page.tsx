@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   BUSINESS_ACCOUNT_TYPE,
   ensureBusinessProfile,
+  resolveBusinessOwner,
 } from "@/lib/auth/business-profile";
 
 export default function SignupPage() {
@@ -22,6 +23,24 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // An already-signed-in business owner should go straight to their dashboard.
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (cancelled || !user) return;
+      if (await resolveBusinessOwner(supabase, user)) {
+        if (!cancelled) router.replace("/business");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
