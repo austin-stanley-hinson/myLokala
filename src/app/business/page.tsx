@@ -1,79 +1,45 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
+import { CreditCard, Gift, Store } from "lucide-react";
 
-import { createClient } from "@/lib/supabase/server";
-import {
-  BUSINESS_ACCOUNT_TYPE,
-  isBusinessOwner,
-} from "@/lib/auth/business-profile";
-import { EditableBusinessProfile } from "@/components/business/editable-business-profile";
-import { GiftCertificatesSection } from "@/components/business/gift-certificates-section";
-import { StripeConnectCard } from "@/components/business/stripe-connect-card";
+import { getBusinessContext, isPaymentsConnected } from "@/lib/auth/business-context";
 
 export const dynamic = "force-dynamic";
 
-type BusinessProfile = {
-  full_name: string | null;
-  account_type: string | null;
-  business_name: string | null;
-  business_address: string | null;
-  business_phone: string | null;
-  business_website: string | null;
-};
+export default async function BusinessOverviewPage() {
+  const { ownerName, businessName, paymentAccount } = await getBusinessContext();
 
-type PaymentAccount = {
-  onboarding_status: string | null;
-  charges_enabled: boolean | null;
-  payouts_enabled: boolean | null;
-};
+  const connected = isPaymentsConnected(paymentAccount);
+  const paymentsHint = connected
+    ? "Connected — ready for payouts"
+    : paymentAccount?.onboarding_status === "restricted"
+      ? "Action needed to finish setup"
+      : paymentAccount?.onboarding_status === "pending"
+        ? "Verification in progress"
+        : "Not connected yet";
 
-export default async function BusinessHomePage() {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    redirect("/login");
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "full_name, account_type, business_name, business_address, business_phone, business_website",
-    )
-    .eq("id", user.id)
-    .maybeSingle<BusinessProfile>();
-
-  // Customers must never reach the business dashboard. The profiles table is
-  // the source of truth for account_type; fall back to auth metadata only when
-  // no profile account_type exists yet (e.g. first sign-in).
-  const isOwner = profile?.account_type
-    ? profile.account_type === BUSINESS_ACCOUNT_TYPE
-    : isBusinessOwner(user);
-
-  if (!isOwner) {
-    redirect("/");
-  }
-
-  const { data: paymentAccount } = await supabase
-    .from("business_payment_accounts")
-    .select("onboarding_status, charges_enabled, payouts_enabled")
-    .eq("owner_id", user.id)
-    .maybeSingle<PaymentAccount>();
-
-  const ownerName =
-    profile?.full_name ?? (user.user_metadata?.full_name as string | undefined);
-  const businessName =
-    profile?.business_name ??
-    (user.user_metadata?.business_name as string | undefined) ??
-    "Your business";
+  const cards = [
+    {
+      href: "/business/profile",
+      label: "Business profile",
+      description: "Update your business name, address, phone, and website.",
+      hint: businessName,
+      icon: Store,
+    },
+    {
+      href: "/business/payments",
+      label: "Payments",
+      description: "Connect Stripe to accept payments and receive payouts.",
+      hint: paymentsHint,
+      icon: CreditCard,
+    },
+    {
+      href: "/business/gift-certificates",
+      label: "Gift certificates",
+      description: "Publish gift certificates for local customers to buy.",
+      hint: "Coming soon",
+      icon: Gift,
+    },
+  ];
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-4 py-12 sm:px-6">
@@ -93,22 +59,37 @@ export default async function BusinessHomePage() {
         </p>
       </header>
 
-      <EditableBusinessProfile
-        initial={{
-          business_name: profile?.business_name ?? null,
-          business_address: profile?.business_address ?? null,
-          business_phone: profile?.business_phone ?? null,
-          business_website: profile?.business_website ?? null,
-        }}
-      />
-
-      <StripeConnectCard
-        onboardingStatus={paymentAccount?.onboarding_status ?? null}
-        chargesEnabled={Boolean(paymentAccount?.charges_enabled)}
-        payoutsEnabled={Boolean(paymentAccount?.payouts_enabled)}
-      />
-
-      <GiftCertificatesSection />
+      <section>
+        <h2 className="text-lg font-extrabold text-lokala-brown-dark">
+          Manage your business
+        </h2>
+        <ul className="mt-4 grid gap-4 sm:grid-cols-3">
+          {cards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <li key={card.href}>
+                <Link
+                  href={card.href}
+                  className="flex h-full flex-col rounded-3xl border border-lokala-border bg-white p-5 shadow-lokala-card transition hover:border-lokala-green hover:shadow-lokala-soft"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-lokala-green-light text-lokala-green-dark">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <h3 className="mt-4 text-base font-extrabold text-lokala-brown-dark">
+                    {card.label}
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-lokala-muted">
+                    {card.description}
+                  </p>
+                  <p className="mt-3 text-xs font-bold uppercase tracking-wide text-lokala-green-dark">
+                    {card.hint}
+                  </p>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     </div>
   );
 }

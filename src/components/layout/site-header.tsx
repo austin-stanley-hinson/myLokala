@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, UserRound, X } from "lucide-react";
 import type { AuthChangeEvent, User } from "@supabase/supabase-js";
 
@@ -26,6 +26,7 @@ const mobileLinkClass =
 
 export function SiteHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [businessOwner, setBusinessOwner] = useState(false);
@@ -143,9 +144,9 @@ export function SiteHeader() {
   const navItems: NavItem[] = isBusinessNav
     ? [
         { href: "/business", label: "Dashboard" },
-        { href: "/business#payments", label: "Payments" },
-        { href: "/business#gift-certificates", label: "Gift Certificates" },
-        { href: "/business#profile", label: "Profile" },
+        { href: "/business/profile", label: "Profile" },
+        { href: "/business/payments", label: "Payments" },
+        { href: "/business/gift-certificates", label: "Gift Certificates" },
       ]
     : [
         { href: "/", label: "Home" },
@@ -158,6 +159,13 @@ export function SiteHeader() {
   if (ready && user && !isBusinessNav) {
     navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
   }
+
+  // A link is active on its exact route; section roots like "/" and "/business"
+  // stay exact so they don't light up on their nested pages.
+  const isActive = (href: string) => {
+    if (href === "/" || href === "/business") return pathname === href;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-lokala-border bg-lokala-cream-light/90 backdrop-blur-xl supports-[backdrop-filter]:bg-lokala-cream-light/80">
@@ -188,11 +196,23 @@ export function SiteHeader() {
             className="hidden items-center gap-x-1 lg:flex"
             aria-label="Primary"
           >
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href} className={desktopLinkClass}>
-                {item.label}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    desktopLinkClass,
+                    active &&
+                      "bg-white text-lokala-green-dark shadow-lokala-soft",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
         ) : null}
 
@@ -282,16 +302,23 @@ export function SiteHeader() {
             className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3 sm:px-6"
             aria-label="Primary"
           >
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className={mobileLinkClass}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    mobileLinkClass,
+                    active && "bg-lokala-green-light text-lokala-green-dark",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
 
             <div className="mt-2 flex flex-col gap-2 border-t border-lokala-border pt-3">
               {!ready ? (
