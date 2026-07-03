@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   BUSINESS_ACCOUNT_TYPE,
-  ensureBusinessProfile,
   resolveBusinessOwner,
+  upsertBusinessProfileFromMetadata,
 } from "@/lib/auth/business-profile";
 
 export default function SignupPage() {
@@ -71,9 +71,10 @@ export default function SignupPage() {
       }
 
       // When email confirmation is disabled, sign-up returns an active session.
-      // Create the business profile row now and head straight to the dashboard.
+      // Write the business profile now (authoritatively, so a default
+      // 'customer' row gets promoted) and head straight to the dashboard.
       if (data.session && data.user) {
-        const { error: profileError } = await ensureBusinessProfile(
+        const { error: profileError } = await upsertBusinessProfileFromMetadata(
           supabase,
           data.user,
         );

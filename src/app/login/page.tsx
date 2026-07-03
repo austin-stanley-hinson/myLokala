@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 import {
-  ensureBusinessProfile,
+  reconcileBusinessOwnerOnLogin,
   resolveBusinessOwner,
 } from "@/lib/auth/business-profile";
 
@@ -63,13 +63,10 @@ export default function LoginPage() {
       }
 
       // The website's sign-in is for businesses; customers use the mobile app.
-      // Business owners are routed into the business area; everyone else lands
-      // on the public home page so customers never enter the dashboard.
-      if (await resolveBusinessOwner(supabase, user)) {
-        // Create the profile row on first sign-in (e.g. after email
-        // confirmation) if it does not exist yet. Existing rows are left
-        // untouched so dashboard edits are never overwritten.
-        await ensureBusinessProfile(supabase, user);
+      // Reconcile ownership against profiles (source of truth), promoting from
+      // metadata when needed, then route business owners into the dashboard and
+      // everyone else to the public home page.
+      if (await reconcileBusinessOwnerOnLogin(supabase, user)) {
         router.replace("/business");
       } else {
         router.replace("/");
