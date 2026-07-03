@@ -2,10 +2,9 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { isBusinessOwner } from "@/lib/auth/business-profile";
-import { BusinessDealsManager } from "@/components/business/business-deals-manager";
 import { EditableBusinessProfile } from "@/components/business/editable-business-profile";
+import { GiftCertificatesSection } from "@/components/business/gift-certificates-section";
 import { StripeConnectCard } from "@/components/business/stripe-connect-card";
-import { DEAL_OWNER_COLUMNS, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
 
@@ -62,21 +61,11 @@ export default async function BusinessHomePage() {
     redirect("/");
   }
 
-  const { data: dealRows } = await supabase
-    .from("deals")
-    .select(DEAL_OWNER_COLUMNS)
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false });
-
   const { data: paymentAccount } = await supabase
     .from("business_payment_accounts")
     .select("onboarding_status, charges_enabled, payouts_enabled")
     .eq("owner_id", user.id)
     .maybeSingle<PaymentAccount>();
-
-  const deals = (dealRows ?? []) as Deal[];
-  const activeCount = deals.filter((deal) => deal.is_active).length;
-  const inactiveCount = deals.length - activeCount;
 
   const ownerName =
     profile?.full_name ?? (user.user_metadata?.full_name as string | undefined);
@@ -84,12 +73,6 @@ export default async function BusinessHomePage() {
     profile?.business_name ??
     (user.user_metadata?.business_name as string | undefined) ??
     "Your business";
-
-  const stats = [
-    { label: "Total deals", value: deals.length },
-    { label: "Active", value: activeCount },
-    { label: "Inactive", value: inactiveCount },
-  ];
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-4 py-12 sm:px-6">
@@ -124,32 +107,7 @@ export default async function BusinessHomePage() {
         payoutsEnabled={Boolean(paymentAccount?.payouts_enabled)}
       />
 
-      <BusinessDealsManager
-        initialDeals={deals}
-        ownerId={user.id}
-        defaultBusinessName={profile?.business_name ?? null}
-      />
-
-      <section id="activity" className="scroll-mt-24">
-        <h2 className="text-lg font-extrabold text-lokala-brown-dark">
-          Activity
-        </h2>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-3xl border border-lokala-border bg-white p-5 shadow-lokala-card"
-            >
-              <dt className="text-xs font-bold uppercase tracking-wide text-lokala-muted">
-                {stat.label}
-              </dt>
-              <dd className="mt-1 text-3xl font-extrabold text-lokala-green-dark">
-                {stat.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      <GiftCertificatesSection />
     </div>
   );
 }
