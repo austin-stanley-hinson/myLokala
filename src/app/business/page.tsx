@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isBusinessOwner } from "@/lib/auth/business-profile";
 import { BusinessDealsManager } from "@/components/business/business-deals-manager";
 import { EditableBusinessProfile } from "@/components/business/editable-business-profile";
+import { StripeConnectCard } from "@/components/business/stripe-connect-card";
 import { DEAL_OWNER_COLUMNS, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +97,23 @@ export default async function BusinessHomePage() {
         </p>
       </header>
 
+      <EditableBusinessProfile
+        initial={{
+          business_name: profile?.business_name ?? null,
+          business_address: profile?.business_address ?? null,
+          business_phone: profile?.business_phone ?? null,
+          business_website: profile?.business_website ?? null,
+        }}
+      />
+
+      <StripeConnectCard />
+
+      <BusinessDealsManager
+        initialDeals={deals}
+        ownerId={user.id}
+        defaultBusinessName={profile?.business_name ?? null}
+      />
+
       <section id="activity" className="scroll-mt-24">
         <h2 className="text-lg font-extrabold text-lokala-brown-dark">
           Activity
@@ -116,21 +134,6 @@ export default async function BusinessHomePage() {
           ))}
         </dl>
       </section>
-
-      <BusinessDealsManager
-        initialDeals={deals}
-        ownerId={user.id}
-        defaultBusinessName={profile?.business_name ?? null}
-      />
-
-      <EditableBusinessProfile
-        initial={{
-          business_name: profile?.business_name ?? null,
-          business_address: profile?.business_address ?? null,
-          business_phone: profile?.business_phone ?? null,
-          business_website: profile?.business_website ?? null,
-        }}
-      />
     </div>
   );
 }
