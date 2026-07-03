@@ -70,15 +70,16 @@ export default async function PaymentsReturnPage() {
     const currentlyDue = stripeAccount.requirements?.currently_due ?? [];
     const pastDue = stripeAccount.requirements?.past_due ?? [];
 
-    // Priority follows the checkpoint spec: complete, then pending (details in
-    // and Stripe reviewing), then restricted (outstanding requirements), else
-    // pending. `not_started` only applies with no account, handled above.
+    // Priority: complete, then restricted (outstanding requirements take
+    // precedence so merchants see that action is needed), then pending when
+    // details are submitted but the account is not fully enabled, else pending.
+    // `not_started` only applies with no account, handled above.
     if (charges_enabled && payouts_enabled) {
       onboarding_status = "complete";
-    } else if (details_submitted) {
-      onboarding_status = "pending";
     } else if (currentlyDue.length > 0 || pastDue.length > 0) {
       onboarding_status = "restricted";
+    } else if (details_submitted) {
+      onboarding_status = "pending";
     } else {
       onboarding_status = "pending";
     }
