@@ -135,12 +135,12 @@ export function StripeConnectCard({
         </div>
 
         {connected ? null : (
-          <div className="sm:pt-1">
+          <div className="flex flex-col items-start sm:pt-1">
             <button
               type="button"
               onClick={() => void startOnboarding()}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-full bg-lokala-green px-5 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-w-[13rem] items-center justify-center gap-2 rounded-full bg-lokala-green px-5 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
                 <>
@@ -151,7 +151,7 @@ export function StripeConnectCard({
                 buttonLabel
               )}
             </button>
-            <p className="mt-2 max-w-[16rem] text-xs text-lokala-muted sm:text-right">
+            <p className="mt-2 max-w-[13rem] text-left text-xs text-lokala-muted">
               Securely set up payments and payouts through Stripe.
             </p>
           </div>

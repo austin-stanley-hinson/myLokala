@@ -1,4 +1,7 @@
-import { ShieldCheck } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 
 type FaqItem = { question: string; answer: string };
 
@@ -37,9 +40,14 @@ const FAQ_ITEMS: FaqItem[] = [
 
 /**
  * Reassuring FAQ shown on the business Payments page explaining why Lokala uses
- * Stripe and what connecting it involves. Copy/UI only — no Stripe logic.
+ * Stripe. Rendered as a single-open accordion (first item open) to keep the
+ * screen calm. Copy/UI only — no Stripe logic.
  */
 export function StripeFaqSection() {
+  // Track the open item; the first is expanded by default. Clicking the open
+  // item collapses it, so at most one panel is open at a time.
+  const [openIndex, setOpenIndex] = useState(0);
+
   return (
     <section
       aria-labelledby="stripe-faq-heading"
@@ -65,21 +73,49 @@ export function StripeFaqSection() {
         </div>
       </div>
 
-      <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-        {FAQ_ITEMS.map((item) => (
-          <div
-            key={item.question}
-            className="rounded-2xl border border-lokala-border bg-white p-5"
-          >
-            <dt className="text-sm font-bold text-lokala-brown-dark">
-              {item.question}
-            </dt>
-            <dd className="mt-2 text-sm leading-6 text-lokala-muted">
-              {item.answer}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <ul className="mt-6 flex flex-col gap-3">
+        {FAQ_ITEMS.map((item, index) => {
+          const isOpen = openIndex === index;
+          const panelId = `stripe-faq-panel-${index}`;
+          const buttonId = `stripe-faq-trigger-${index}`;
+
+          return (
+            <li
+              key={item.question}
+              className="overflow-hidden rounded-2xl border border-lokala-border bg-white"
+            >
+              <h3>
+                <button
+                  type="button"
+                  id={buttonId}
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  onClick={() => setOpenIndex(isOpen ? -1 : index)}
+                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left text-sm font-bold text-lokala-brown-dark transition-colors hover:bg-lokala-cream-light/60"
+                >
+                  <span>{item.question}</span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-4 w-4 shrink-0 text-lokala-green-dark transition-transform duration-200 ${
+                      isOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+              </h3>
+              {isOpen ? (
+                <div
+                  id={panelId}
+                  role="region"
+                  aria-labelledby={buttonId}
+                  className="px-5 pb-4 text-sm leading-6 text-lokala-muted"
+                >
+                  {item.answer}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
