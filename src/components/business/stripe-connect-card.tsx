@@ -53,7 +53,9 @@ export function StripeConnectCard({
             className: "bg-lokala-brown-soft text-lokala-brown",
           };
 
-  const buttonLabel = inProgress ? "Continue Stripe setup" : "Connect Stripe";
+  const buttonLabel = inProgress
+    ? "Continue Stripe setup"
+    : "Connect with Stripe";
 
   const description = connected
     ? "Your Stripe account is connected. You can accept gift certificate payments and receive payouts."
@@ -149,6 +151,9 @@ export function StripeConnectCard({
                 buttonLabel
               )}
             </button>
+            <p className="mt-2 max-w-[16rem] text-xs text-lokala-muted sm:text-right">
+              Securely set up payments and payouts through Stripe.
+            </p>
           </div>
         )}
       </div>

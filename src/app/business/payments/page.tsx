@@ -1,5 +1,6 @@
 import { getBusinessContext } from "@/lib/auth/business-context";
 import { StripeConnectCard } from "@/components/business/stripe-connect-card";
+import { StripeFaqSection } from "@/components/business/stripe-faq-section";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ export default async function BusinessPaymentsPage() {
         chargesEnabled={Boolean(paymentAccount?.charges_enabled)}
         payoutsEnabled={Boolean(paymentAccount?.payouts_enabled)}
       />
+
+      <StripeFaqSection />
     </div>
   );
 }
