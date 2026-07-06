@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { getBusinessContext } from "@/lib/auth/business-context";
 import { EditableBusinessProfile } from "@/components/business/editable-business-profile";
 
@@ -29,6 +31,23 @@ export default async function BusinessProfilePage() {
           business_website: profile?.business_website ?? null,
         }}
       />
+
+      <section className="rounded-3xl border border-lokala-border bg-white p-6 shadow-lokala-card">
+        <h2 className="text-lg font-extrabold text-lokala-brown-dark">
+          Password &amp; security
+        </h2>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-lokala-muted">
+          Password changes are handled securely by email. Request a reset link
+          and we&apos;ll send it to your account email so you can set a new
+          password.
+        </p>
+        <Link
+          href="/forgot-password"
+          className="mt-4 inline-flex rounded-full border border-lokala-border bg-white px-5 py-2.5 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
+        >
+          Send password reset link
+        </Link>
+      </section>
     </div>
   );
 }
