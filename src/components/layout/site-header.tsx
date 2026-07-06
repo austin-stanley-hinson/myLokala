@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, UserRound, X } from "lucide-react";
+import {
+  CreditCard,
+  KeyRound,
+  LogOut,
+  Menu,
+  UserRound,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import type { AuthChangeEvent, User } from "@supabase/supabase-js";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
@@ -134,7 +142,7 @@ export function SiteHeader() {
   }
 
   const menuItemClass =
-    "block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted";
+    "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-lokala-brown transition-colors hover:bg-lokala-green-light hover:text-lokala-green-dark";
 
   // Primary nav links, derived from auth state (shared by desktop + mobile).
   // Signed-in business owners get the B2B navigation into the dashboard
@@ -159,6 +167,17 @@ export function SiteHeader() {
   if (ready && user && !isBusinessNav) {
     navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
   }
+
+  // Account dropdown actions. Business owners get quick links into their
+  // account areas; "Change password" (the reset flow) is available to everyone.
+  type AccountItem = { href: string; label: string; icon: LucideIcon };
+  const accountMenuItems: AccountItem[] = businessOwner
+    ? [
+        { href: "/business/profile", label: "Profile", icon: UserRound },
+        { href: "/business/payments", label: "Payments", icon: CreditCard },
+        { href: "/forgot-password", label: "Change password", icon: KeyRound },
+      ]
+    : [{ href: "/forgot-password", label: "Change password", icon: KeyRound }];
 
   // A link is active on its exact route; section roots like "/" and "/business"
   // stay exact so they don't light up on their nested pages.
@@ -259,14 +278,37 @@ export function SiteHeader() {
               {menuOpen ? (
                 <div
                   role="menu"
-                  className="absolute right-0 top-full z-50 mt-2 min-w-[12rem] rounded-2xl border border-lokala-border bg-card py-1 shadow-lokala-card"
+                  className="absolute right-0 top-full z-50 mt-2 min-w-[13rem] overflow-hidden rounded-2xl border border-lokala-border bg-white py-1 shadow-lokala-card"
                 >
+                  {accountMenuItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        role="menuitem"
+                        onClick={() => setMenuOpen(false)}
+                        className={menuItemClass}
+                      >
+                        <Icon
+                          className="size-4 shrink-0 text-lokala-green-dark"
+                          aria-hidden
+                        />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                  <div className="my-1 border-t border-lokala-border" />
                   <button
                     type="button"
                     role="menuitem"
                     onClick={() => void handleSignOut()}
                     className={menuItemClass}
                   >
+                    <LogOut
+                      className="size-4 shrink-0 text-lokala-green-dark"
+                      aria-hidden
+                    />
                     Sign out
                   </button>
                 </div>
@@ -335,13 +377,22 @@ export function SiteHeader() {
                   Business Sign In
                 </Link>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => void handleSignOut()}
-                  className="w-full rounded-full border border-lokala-border bg-white px-5 py-3 text-center text-base font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
-                >
-                  Sign out
-                </button>
+                <>
+                  <Link
+                    href="/forgot-password"
+                    onClick={() => setMobileOpen(false)}
+                    className="w-full rounded-full border border-lokala-border bg-white px-5 py-3 text-center text-base font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
+                  >
+                    Change password
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void handleSignOut()}
+                    className="w-full rounded-full border border-lokala-border bg-white px-5 py-3 text-center text-base font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
+                  >
+                    Sign out
+                  </button>
+                </>
               )}
             </div>
           </nav>
