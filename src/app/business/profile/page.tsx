@@ -32,21 +32,61 @@ export default async function BusinessProfilePage() {
         }}
       />
 
-      <section className="rounded-3xl border border-lokala-border bg-white p-6 shadow-lokala-card">
-        <h2 className="text-lg font-extrabold text-lokala-brown-dark">
-          Password &amp; security
-        </h2>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-lokala-muted">
-          Password changes are handled securely by email. Request a reset link
-          and we&apos;ll send it to your account email so you can set a new
-          password.
-        </p>
-        <Link
-          href="/forgot-password"
-          className="mt-4 inline-flex rounded-full border border-lokala-border bg-white px-5 py-2.5 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
+      <section
+        aria-labelledby="account-help-heading"
+        className="rounded-3xl border border-lokala-border bg-lokala-cream-light/60 p-6 shadow-lokala-card"
+      >
+        <h2
+          id="account-help-heading"
+          className="text-lg font-extrabold text-lokala-brown-dark"
         >
-          Send password reset link
-        </Link>
+          Profile &amp; account help
+        </h2>
+
+        <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border border-lokala-border bg-white p-4">
+            <dt className="text-sm font-bold text-lokala-brown-dark">
+              How do I change my password?
+            </dt>
+            <dd className="mt-1 text-sm leading-6 text-lokala-muted">
+              We handle it by email.{" "}
+              <Link
+                href="/forgot-password"
+                className="font-bold text-lokala-green-dark underline underline-offset-4"
+              >
+                Request a reset link
+              </Link>{" "}
+              and set a new password.
+            </dd>
+          </div>
+          <div className="rounded-2xl border border-lokala-border bg-white p-4">
+            <dt className="text-sm font-bold text-lokala-brown-dark">
+              How do I update my business details?
+            </dt>
+            <dd className="mt-1 text-sm leading-6 text-lokala-muted">
+              Use the{" "}
+              <span className="font-bold text-lokala-brown-dark">
+                Business details
+              </span>{" "}
+              section above to edit your name, address, phone, and website.
+            </dd>
+          </div>
+          <div className="rounded-2xl border border-lokala-border bg-white p-4">
+            <dt className="text-sm font-bold text-lokala-brown-dark">
+              Why keep my profile updated?
+            </dt>
+            <dd className="mt-1 text-sm leading-6 text-lokala-muted">
+              Accurate details help customers find and trust you. Ready to sell?{" "}
+              <Link
+                href="/business/payments"
+                className="font-bold text-lokala-green-dark underline underline-offset-4"
+              >
+                Set up payments
+              </Link>
+              .
+            </dd>
+          </div>
+        </dl>
       </section>
     </div>
   );

@@ -160,6 +160,16 @@ export function SiteHeader() {
     navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
   }
 
+  // Account dropdown actions. Business owners get quick links into their
+  // account areas; "Change password" (the reset flow) is available to everyone.
+  const accountMenuItems: NavItem[] = businessOwner
+    ? [
+        { href: "/business/profile", label: "Profile" },
+        { href: "/business/payments", label: "Payments" },
+        { href: "/forgot-password", label: "Change password" },
+      ]
+    : [{ href: "/forgot-password", label: "Change password" }];
+
   // A link is active on its exact route; section roots like "/" and "/business"
   // stay exact so they don't light up on their nested pages.
   const isActive = (href: string) => {
@@ -261,6 +271,18 @@ export function SiteHeader() {
                   role="menu"
                   className="absolute right-0 top-full z-50 mt-2 min-w-[12rem] rounded-2xl border border-lokala-border bg-card py-1 shadow-lokala-card"
                 >
+                  {accountMenuItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      role="menuitem"
+                      onClick={() => setMenuOpen(false)}
+                      className={menuItemClass}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                  <div className="my-1 border-t border-lokala-border" />
                   <button
                     type="button"
                     role="menuitem"
@@ -335,13 +357,22 @@ export function SiteHeader() {
                   Business Sign In
                 </Link>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => void handleSignOut()}
-                  className="w-full rounded-full border border-lokala-border bg-white px-5 py-3 text-center text-base font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
-                >
-                  Sign out
-                </button>
+                <>
+                  <Link
+                    href="/forgot-password"
+                    onClick={() => setMobileOpen(false)}
+                    className="w-full rounded-full border border-lokala-border bg-white px-5 py-3 text-center text-base font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
+                  >
+                    Change password
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void handleSignOut()}
+                    className="w-full rounded-full border border-lokala-border bg-white px-5 py-3 text-center text-base font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
+                  >
+                    Sign out
+                  </button>
+                </>
               )}
             </div>
           </nav>
