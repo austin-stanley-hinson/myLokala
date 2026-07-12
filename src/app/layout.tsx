@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Geist_Mono, Inter } from "next/font/google";
 
 import { AlertBanner } from "@/components/layout/alert-banner";
+import { HideOnHome } from "@/components/layout/hide-on-home";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 
@@ -44,10 +45,16 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} ${geistMono.variable} h-full font-sans antialiased`}
     >
       <body className="flex min-h-full flex-col bg-lokala-cream-light text-lokala-text">
-        <AlertBanner />
-        <SiteHeader />
+        <HideOnHome>
+          <AlertBanner />
+        </HideOnHome>
+        <HideOnHome>
+          <SiteHeader />
+        </HideOnHome>
         <main className="flex flex-1 flex-col">{children}</main>
-        <SiteFooter />
+        <HideOnHome>
+          <SiteFooter />
+        </HideOnHome>
       </body>
     </html>
   );
