@@ -1,13 +1,10 @@
-import Link from "next/link";
-
 import { BrandWordmark } from "@/components/brand-wordmark";
-import RedeemDealButton from "@/components/deals/redeem-deal-button";
-import SaveDealButton from "@/components/deals/save-deal-button";
-import { CategoryNav } from "@/components/dashboard/category-nav";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { GiftCertificateCard } from "@/components/dashboard/gift-certificate-card";
+import { HomeDealsSection } from "@/components/dashboard/home-deals-section";
 import { createClient } from "@/lib/supabase/server";
-import { DEAL_LIST_COLUMNS, formatExpiry, type Deal } from "@/types/deal";
+import { DEAL_LIST_COLUMNS, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
 
@@ -118,88 +115,13 @@ export default async function HomePage() {
       <div className="flex flex-col gap-8">
         <DashboardHero images={HERO_IMAGES} />
 
-        <div>
-          <h2 className="mb-3 text-sm font-extrabold uppercase tracking-[0.18em] text-lokala-green-dark">
-            Browse by category
-          </h2>
-          <CategoryNav categories={categories} activeCategory="All" />
-        </div>
+        <GiftCertificateCard />
 
-        {/* Featured local deals — existing card markup retained; the deal card
-            redesign is deferred to Phase 3. */}
-        <section>
-          <div className="mb-5 flex items-end justify-between gap-6">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-lokala-green-dark">
-                Featured local deals
-              </p>
-              <h2 className="mt-1 text-2xl font-extrabold text-lokala-brown-dark sm:text-3xl">
-                Fresh offers from local businesses
-              </h2>
-            </div>
-            <Link
-              href="/browse"
-              className="hidden whitespace-nowrap rounded-full border border-lokala-border bg-white px-5 py-2.5 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light sm:inline-block"
-            >
-              Browse all
-            </Link>
-          </div>
-
-          {rows.length === 0 ? (
-            <div className="rounded-3xl border border-lokala-border bg-white p-10 text-center shadow-lokala-card">
-              <p className="text-lg font-bold text-lokala-brown-dark">
-                No active deals right now.
-              </p>
-              <p className="mt-2 text-sm text-lokala-muted">
-                Check back soon — new local offers are added regularly.
-              </p>
-            </div>
-          ) : (
-            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {rows.map((deal) => (
-                <li
-                  key={deal.id}
-                  className="group flex flex-col rounded-[2rem] border border-lokala-border bg-white p-5 shadow-lokala-card transition duration-200 hover:-translate-y-1 hover:shadow-lokala-lift"
-                >
-                  <div className="mb-4 flex items-center justify-between gap-3 rounded-[1.5rem] bg-lokala-green-soft px-4 py-4">
-                    <p className="truncate text-sm font-bold text-lokala-brown-dark">
-                      {deal.business_name ?? "Local business"}
-                    </p>
-                    <span className="shrink-0 rounded-full bg-lokala-green-light px-3 py-1 text-xs font-extrabold text-lokala-green-dark">
-                      Active
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-lokala-green-dark">
-                      {deal.category ?? "Local offer"}
-                    </p>
-                    <SaveDealButton
-                      dealId={deal.id}
-                      initialSaved={savedDealIds.has(deal.id)}
-                    />
-                  </div>
-                  <h3 className="mt-1 line-clamp-2 text-xl font-extrabold text-lokala-brown-dark">
-                    {deal.title}
-                  </h3>
-
-                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-lokala-muted">
-                    {deal.discount_detail ??
-                      "A great local offer — redeem while it lasts."}
-                  </p>
-
-                  <div className="mt-4 flex items-center justify-end gap-4 text-xs font-semibold text-lokala-muted">
-                    <span>{formatExpiry(deal.expires_at)}</span>
-                  </div>
-
-                  <div className="mt-5 pt-1">
-                    <RedeemDealButton deal={deal} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <HomeDealsSection
+          deals={rows}
+          savedDealIds={Array.from(savedDealIds)}
+          categories={categories}
+        />
       </div>
     </DashboardShell>
   );
