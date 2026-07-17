@@ -1,4 +1,4 @@
-import RedeemDealButton from "@/components/deals/redeem-deal-button";
+import { RedeemInAppNote } from "@/components/deals/redeem-in-app-note";
 import SaveDealButton from "@/components/deals/save-deal-button";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, formatExpiry, type Deal } from "@/types/deal";
@@ -103,15 +103,15 @@ export default async function BrowsePage() {
               </h2>
               <p className="mt-2 line-clamp-3 text-base leading-relaxed text-muted-foreground">
                 {deal.discount_detail ??
-                  "A great local offer—redeem while it lasts."}
+                  "A great local offer while it lasts."}
               </p>
 
-              <div className="mt-4 flex items-center justify-end gap-3 text-sm text-muted-foreground">
+              <div className="mt-4 flex items-center gap-3 text-sm text-muted-foreground">
                 <p>{formatExpiry(deal.expires_at)}</p>
               </div>
 
-              <div className="mt-5 pt-1">
-                <RedeemDealButton deal={deal} />
+              <div className="mt-auto pt-5">
+                <RedeemInAppNote />
               </div>
             </li>
           ))}

@@ -65,12 +65,13 @@ export function DashboardHero({ images }: { images: string[] }) {
             />
           </div>
         ))}
-        {/* Warm overlay keeps the copy readable over any photo. */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-lokala-brown-dark/85 via-lokala-brown-dark/55 to-lokala-brown-dark/10" />
+        {/* Warm overlay keeps the copy readable over any photo. Kept softer so
+            more of the original photo colors/detail show through. */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-lokala-brown-dark/65 via-lokala-brown-dark/35 to-lokala-brown-dark/5" />
       </div>
 
       <div className="relative flex min-h-[22rem] flex-col justify-end gap-5 p-6 sm:min-h-[26rem] sm:p-10 lg:min-h-[30rem]">
-        <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.18em] text-lokala-green-dark">
+        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/50 bg-transparent px-3 py-1 text-xs font-extrabold uppercase tracking-[0.18em] text-white">
           <span className="h-1.5 w-1.5 rounded-full bg-lokala-green" aria-hidden />
           Waterville &middot; Maine
         </span>

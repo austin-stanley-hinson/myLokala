@@ -3,6 +3,7 @@ import { Fraunces, Geist_Mono, Inter } from "next/font/google";
 
 import { AlertBanner } from "@/components/layout/alert-banner";
 import { HideOnHome } from "@/components/layout/hide-on-home";
+import { PageBackground } from "@/components/layout/page-background";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 
@@ -45,6 +46,7 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} ${geistMono.variable} h-full font-sans antialiased`}
     >
       <body className="flex min-h-full flex-col bg-lokala-cream-light text-lokala-text">
+        <PageBackground />
         <HideOnHome>
           <AlertBanner />
         </HideOnHome>

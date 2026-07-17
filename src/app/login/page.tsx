@@ -89,7 +89,8 @@ export default function LoginPage() {
         Business sign in
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Sign in to manage your business on Lokala. Customers use the Lokala
+        For local business owners, merchants, and partners. Sign in to manage
+        your business on Lokala. Customers browse and redeem deals in the Lokala
         mobile app.
       </p>
 

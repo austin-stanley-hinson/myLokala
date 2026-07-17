@@ -72,13 +72,14 @@ function SavedDealsCard({
       ) : (
         <>
           <p className="mt-4 text-sm leading-6 text-lokala-muted">
-            Sign in to save local deals and pick up where you left off.
+            Save deals in the Lokala mobile app. Own a local business? Sign in
+            to manage your listings and deals.
           </p>
           <Link
             href="/login"
             className="mt-4 inline-block rounded-full border border-lokala-border bg-white px-4 py-2 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
           >
-            Sign in
+            Business sign in
           </Link>
         </>
       )}

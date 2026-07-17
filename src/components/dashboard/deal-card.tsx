@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Clock, Globe, MapPin } from "lucide-react";
 
-import RedeemDealButton from "@/components/deals/redeem-deal-button";
+import { RedeemInAppNote } from "@/components/deals/redeem-in-app-note";
 import SaveDealButton from "@/components/deals/save-deal-button";
 import { Badge } from "@/components/dashboard/badge";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,11 @@ import { formatExpiry, type Deal } from "@/types/deal";
 
 /**
  * Redesigned homepage deal card. Presentational — it composes the existing
- * SaveDealButton / RedeemDealButton without changing their behavior.
+ * SaveDealButton without changing its behavior.
+ *
+ * The web is discovery-only: redemption happens in the Lokala mobile app, so
+ * the card shows a static "Redeem in the Lokala mobile app" note instead of a
+ * web redeem action.
  *
  * There is no deal image column in the schema, so the Lokala logo is used as
  * the fallback thumbnail (do not assume a deals.image_url field).
@@ -98,11 +102,10 @@ export function DealCard({
           ) : null}
         </div>
 
-        {/* Actions: green primary (redeem) + outline icon (save). */}
-        <div className="mt-5 flex items-start gap-3">
-          <div className="flex-1">
-            <RedeemDealButton deal={deal} />
-          </div>
+        {/* Redemption is app-only; keep Save available. Pinned to the bottom
+            so cards of varying height stay aligned. */}
+        <div className="mt-auto flex items-center justify-between gap-3 pt-5">
+          <RedeemInAppNote />
           <SaveDealButton dealId={deal.id} initialSaved={initialSaved} />
         </div>
       </div>
