@@ -17,15 +17,12 @@ const ALL = "All";
  */
 export function HomeDealsSection({
   deals,
-  savedDealIds,
   categories,
 }: {
   deals: Deal[];
-  savedDealIds: string[];
   categories: string[];
 }) {
   const [active, setActive] = useState(ALL);
-  const savedSet = useMemo(() => new Set(savedDealIds), [savedDealIds]);
 
   const filtered = useMemo(
     () =>
@@ -127,11 +124,7 @@ export function HomeDealsSection({
         ) : (
           <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((deal) => (
-              <DealCard
-                key={deal.id}
-                deal={deal}
-                initialSaved={savedSet.has(deal.id)}
-              />
+              <DealCard key={deal.id} deal={deal} />
             ))}
           </ul>
         )}

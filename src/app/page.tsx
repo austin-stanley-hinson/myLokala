@@ -83,20 +83,6 @@ export default async function HomePage() {
 
   const rows = (deals ?? []) as Deal[];
 
-  // Mark which of these deals the signed-in user has already saved.
-  let savedDealIds = new Set<string>();
-  if (user && rows.length > 0) {
-    const { data: saved } = await supabase
-      .from("saved_deals")
-      .select("deal_id")
-      .eq("user_id", user.id)
-      .in(
-        "deal_id",
-        rows.map((deal) => deal.id),
-      );
-    savedDealIds = new Set((saved ?? []).map((row) => row.deal_id as string));
-  }
-
   // Category chips derived from the actual category values on the loaded deals
   // (no invented taxonomy), with an "All" option first.
   const distinctCategories = Array.from(
@@ -111,23 +97,11 @@ export default async function HomePage() {
   const userName = user?.user_metadata?.full_name as string | undefined;
 
   return (
-    <DashboardShell
-      userName={userName}
-      rightRail={
-        <DashboardRightRail
-          savedCount={savedDealIds.size}
-          isSignedIn={Boolean(user)}
-        />
-      }
-    >
+    <DashboardShell userName={userName} rightRail={<DashboardRightRail />}>
       <div className="flex flex-col gap-8">
         <DashboardHero images={HERO_IMAGES} />
 
-        <HomeDealsSection
-          deals={rows}
-          savedDealIds={Array.from(savedDealIds)}
-          categories={categories}
-        />
+        <HomeDealsSection deals={rows} categories={categories} />
       </div>
     </DashboardShell>
   );

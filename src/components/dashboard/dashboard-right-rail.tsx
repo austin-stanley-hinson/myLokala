@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bookmark, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 import { GiftCertificateCard } from "@/components/dashboard/gift-certificate-card";
 import { SurfaceCard } from "@/components/dashboard/surface-card";
@@ -8,20 +8,18 @@ import { SurfaceCard } from "@/components/dashboard/surface-card";
 /**
  * Homepage dashboard right rail. On xl it sits beside the main column; below
  * xl it stacks under the content (handled by DashboardShell). Contains the
- * gift certificate card plus a real Saved Deals summary and two clearly-marked
+ * gift certificate card, a business sign-in prompt, and two clearly-marked
  * static placeholder cards (Community Spotlight, Local Impact).
+ *
+ * Saved/bookmark UI has been intentionally removed from the web experience for
+ * now (customers use the Lokala mobile app); the saved_deals backend is
+ * untouched.
  */
-export function DashboardRightRail({
-  savedCount,
-  isSignedIn,
-}: {
-  savedCount: number;
-  isSignedIn: boolean;
-}) {
+export function DashboardRightRail() {
   return (
     <div className="flex flex-col gap-5">
       <GiftCertificateCard />
-      <SavedDealsCard savedCount={savedCount} isSignedIn={isSignedIn} />
+      <BusinessSignInCard />
       <CommunitySpotlightCard />
       <LocalImpactCard />
     </div>
@@ -29,60 +27,33 @@ export function DashboardRightRail({
 }
 
 /**
- * Real data: uses the saved state already computed for the featured deals on
- * the homepage (no new query). The count therefore reflects saved deals among
- * the featured set, not a global total.
+ * Directs local business owners/merchants to the existing business auth routes.
+ * The web sign-in is B2B; customers browse here and act in the mobile app.
  */
-function SavedDealsCard({
-  savedCount,
-  isSignedIn,
-}: {
-  savedCount: number;
-  isSignedIn: boolean;
-}) {
+function BusinessSignInCard() {
   return (
     <SurfaceCard className="p-5">
-      <div className="flex items-center gap-2">
-        <span className="flex size-9 items-center justify-center rounded-xl bg-lokala-green-light text-lokala-green-dark">
-          <Bookmark className="size-4" aria-hidden />
-        </span>
-        <h3 className="text-base font-extrabold text-lokala-brown-dark">
-          Saved deals
-        </h3>
+      <h3 className="text-base font-extrabold text-lokala-brown-dark">
+        For local businesses
+      </h3>
+      <p className="mt-2 text-sm leading-6 text-lokala-muted">
+        Own a Waterville business? Sign in to manage your listings and deals, or
+        create an account to get started.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link
+          href="/login"
+          className="inline-block rounded-full bg-lokala-green px-4 py-2 text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
+        >
+          Business sign in
+        </Link>
+        <Link
+          href="/signup"
+          className="inline-block rounded-full border border-lokala-border bg-white px-4 py-2 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
+        >
+          List your business
+        </Link>
       </div>
-
-      {isSignedIn ? (
-        <>
-          <p className="mt-4 text-3xl font-extrabold text-lokala-green-dark">
-            {savedCount}
-            <span className="ml-1 text-sm font-bold text-lokala-muted">
-              {savedCount === 1 ? "saved" : "saved"}
-            </span>
-          </p>
-          <p className="mt-1 text-xs font-semibold text-lokala-muted">
-            Across the featured deals below.
-          </p>
-          <Link
-            href="/browse"
-            className="mt-4 inline-block rounded-full border border-lokala-border bg-white px-4 py-2 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
-          >
-            Find more deals
-          </Link>
-        </>
-      ) : (
-        <>
-          <p className="mt-4 text-sm leading-6 text-lokala-muted">
-            Save deals in the Lokala mobile app. Own a local business? Sign in
-            to manage your listings and deals.
-          </p>
-          <Link
-            href="/login"
-            className="mt-4 inline-block rounded-full border border-lokala-border bg-white px-4 py-2 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
-          >
-            Business sign in
-          </Link>
-        </>
-      )}
     </SurfaceCard>
   );
 }

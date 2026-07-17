@@ -4,35 +4,33 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bookmark,
   Gift,
   Home,
   Settings,
   Tag,
-  Ticket,
   UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
 
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { cn } from "@/lib/utils";
 
 type NavLink = { href: string; label: string; icon: LucideIcon };
 type NavPlaceholder = { label: string; icon: LucideIcon };
 
-// Clickable items point ONLY at real, existing routes.
+// Clickable items point ONLY at real, existing routes. Customer redemption is
+// mobile-app only, so no "Redemptions" account entry is surfaced on the web.
 const PRIMARY_NAV: NavLink[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/browse", label: "Deals", icon: Tag },
   { href: "/gift-certificates", label: "Gift Certificates", icon: Gift },
-  { href: "/my-redemptions", label: "Redemptions", icon: Ticket },
 ];
 
 // Concept nav items that have no web backend/route yet. Rendered as clearly
 // disabled, non-clickable placeholders purely to preserve the app-like sidebar
 // structure. These must not ship as if functional (see Phase 1 report).
 const PLACEHOLDER_NAV: NavPlaceholder[] = [
-  { label: "Saved", icon: Bookmark },
   { label: "Community", icon: Users },
   { label: "Profile", icon: UserRound },
   { label: "Settings", icon: Settings },
@@ -53,14 +51,17 @@ export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void }) {
         className="flex items-center gap-2.5 px-2 outline-none focus-visible:ring-2 focus-visible:ring-lokala-green"
         aria-label="Lokala home"
       >
-        <Image
-          src="/lokala-logo.png"
-          alt="Lokala"
-          width={120}
-          height={40}
-          className="h-9 w-auto rounded-xl bg-white object-contain p-1 shadow-lokala-soft"
-          priority
-        />
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-lokala-soft">
+          <Image
+            src="/logo-try-1.png"
+            alt=""
+            width={44}
+            height={44}
+            className="size-8 object-contain"
+            priority
+          />
+        </span>
+        <BrandWordmark className="text-xl" />
       </Link>
 
       <nav className="flex flex-1 flex-col gap-1" aria-label="Dashboard">

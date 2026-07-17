@@ -1,5 +1,4 @@
 import { RedeemInAppNote } from "@/components/deals/redeem-in-app-note";
-import SaveDealButton from "@/components/deals/save-deal-button";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, formatExpiry, type Deal } from "@/types/deal";
 
@@ -21,10 +20,6 @@ export default async function BrowsePage() {
 
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const { data: deals, error: dealsError } = await supabase
     .from("deals")
     .select(DEAL_LIST_COLUMNS)
@@ -45,19 +40,6 @@ export default async function BrowsePage() {
   }
 
   const rows = (deals ?? []) as Deal[];
-
-  let savedDealIds = new Set<string>();
-  if (user && rows.length > 0) {
-    const { data: saved } = await supabase
-      .from("saved_deals")
-      .select("deal_id")
-      .eq("user_id", user.id)
-      .in(
-        "deal_id",
-        rows.map((deal) => deal.id),
-      );
-    savedDealIds = new Set((saved ?? []).map((row) => row.deal_id as string));
-  }
 
   return (
     <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:px-6 sm:py-18">
@@ -81,21 +63,15 @@ export default async function BrowsePage() {
               key={deal.id}
               className="flex flex-col rounded-2xl border border-border/70 bg-card p-6 shadow-sm"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-base font-medium text-muted-foreground">
-                    {deal.business_name ?? "Local business"}
+              <div className="min-w-0">
+                <p className="truncate text-base font-medium text-muted-foreground">
+                  {deal.business_name ?? "Local business"}
+                </p>
+                {deal.category ? (
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-lokala-green-dark">
+                    {deal.category}
                   </p>
-                  {deal.category ? (
-                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-lokala-green-dark">
-                      {deal.category}
-                    </p>
-                  ) : null}
-                </div>
-                <SaveDealButton
-                  dealId={deal.id}
-                  initialSaved={savedDealIds.has(deal.id)}
-                />
+                ) : null}
               </div>
 
               <h2 className="mt-3 line-clamp-2 text-xl font-semibold text-primary-dark">

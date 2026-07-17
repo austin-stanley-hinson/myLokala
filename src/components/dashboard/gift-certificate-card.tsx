@@ -12,15 +12,15 @@ export function GiftCertificateCard() {
   return (
     <section className="overflow-hidden rounded-3xl border border-lokala-green-dark/20 bg-gradient-to-br from-lokala-green to-lokala-green-dark p-5 shadow-lokala-card">
       <div className="flex items-center gap-3.5">
-        <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white shadow-lokala-soft">
+        <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white shadow-lokala-soft">
           <Image
-            src="/lokala-logo.png"
+            src="/logo-try-1.png"
             alt="Lokala"
-            width={72}
-            height={72}
-            className="h-12 w-auto object-contain"
+            width={56}
+            height={56}
+            className="size-10 object-contain"
           />
-        </div>
+        </span>
         <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/80">
           Lokala Gift Certificates
         </p>
