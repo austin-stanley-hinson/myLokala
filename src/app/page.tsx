@@ -3,6 +3,7 @@ import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardRightRail } from "@/components/dashboard/dashboard-right-rail";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { HomeDealsSection } from "@/components/dashboard/home-deals-section";
+import { PageBackground } from "@/components/layout/page-background";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, type Deal } from "@/types/deal";
 
@@ -111,24 +112,27 @@ export default async function HomePage() {
   const userName = user?.user_metadata?.full_name as string | undefined;
 
   return (
-    <DashboardShell
-      userName={userName}
-      rightRail={
-        <DashboardRightRail
-          savedCount={savedDealIds.size}
-          isSignedIn={Boolean(user)}
-        />
-      }
-    >
-      <div className="flex flex-col gap-8">
-        <DashboardHero images={HERO_IMAGES} />
+    <>
+      <PageBackground />
+      <DashboardShell
+        userName={userName}
+        rightRail={
+          <DashboardRightRail
+            savedCount={savedDealIds.size}
+            isSignedIn={Boolean(user)}
+          />
+        }
+      >
+        <div className="flex flex-col gap-8">
+          <DashboardHero images={HERO_IMAGES} />
 
-        <HomeDealsSection
-          deals={rows}
-          savedDealIds={Array.from(savedDealIds)}
-          categories={categories}
-        />
-      </div>
-    </DashboardShell>
+          <HomeDealsSection
+            deals={rows}
+            savedDealIds={Array.from(savedDealIds)}
+            categories={categories}
+          />
+        </div>
+      </DashboardShell>
+    </>
   );
 }
