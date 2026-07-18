@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
+
 import { RedeemInAppNote } from "@/components/deals/redeem-in-app-note";
+import { buildPageMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, formatExpiry, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Local Deals in Waterville | Lokala",
+  description:
+    "Browse local deals from participating Waterville businesses and discover nearby offers through Lokala.",
+  path: "/browse",
+});
 
 export default async function BrowsePage() {
   if (

@@ -1,13 +1,23 @@
+import type { Metadata } from "next";
+
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardRightRail } from "@/components/dashboard/dashboard-right-rail";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { HomeDealsSection } from "@/components/dashboard/home-deals-section";
 import { resolveBusinessOwner } from "@/lib/auth/business-profile";
+import { buildPageMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, type Deal } from "@/types/deal";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Lokala | Always Local",
+  description:
+    "Discover local deals and gift certificates from participating businesses in Waterville, Maine. Lokala helps neighbors support nearby businesses and keep spending local.",
+  path: "/",
+});
 
 // Existing Waterville/local imagery in /public, reused for the hero carousel.
 const HERO_IMAGES = [
