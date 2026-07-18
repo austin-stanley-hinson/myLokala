@@ -165,92 +165,16 @@
   }
   body {
     @apply text-base leading-relaxed text-foreground;
-    /* Subtle, premium site-wide texture: two soft blue/teal corner washes plus
-       an interlocking scale/serpentine pattern built from offset radial
-       gradients. Opacity is kept very low so content stays fully readable, and
-       a fixed attachment keeps it stable behind every page. Solid section/card
-       surfaces sit cleanly on top. */
+    /* Solid warm cream base only. The soft botanical page backdrop is supplied
+       site-wide by <PageBackground /> in the root layout. The previous
+       snake/scale serpentine texture has been fully removed. */
     background-color: var(--background);
-    background-image:
-      radial-gradient(
-        900px 520px at 12% -8%,
-        rgba(47, 111, 143, 0.06),
-        transparent 60%
-      ),
-      radial-gradient(
-        900px 600px at 108% 10%,
-        rgba(95, 176, 183, 0.06),
-        transparent 55%
-      ),
-      radial-gradient(
-        circle at 100% 50%,
-        transparent 19%,
-        rgba(47, 111, 143, 0.035) 20%,
-        rgba(47, 111, 143, 0.035) 33%,
-        transparent 34%
-      ),
-      radial-gradient(
-        circle at 0% 50%,
-        transparent 19%,
-        rgba(95, 176, 183, 0.03) 20%,
-        rgba(95, 176, 183, 0.03) 33%,
-        transparent 34%
-      );
-    background-size:
-      100% 100%,
-      100% 100%,
-      96px 96px,
-      96px 96px;
-    background-position:
-      0 0,
-      0 0,
-      0 0,
-      48px 48px;
-    background-repeat: no-repeat, no-repeat, repeat, repeat;
-    background-attachment: fixed, fixed, fixed, fixed;
   }
 
-  /* Dark mode hook (class-based variant). Darker neutral base with the same
-     faint blue/teal scale texture so it stays premium and readable. */
+  /* Dark mode hook (class-based variant). Darker neutral base; the botanical
+     page backdrop layer sits above it via <PageBackground />. */
   .dark body {
     background-color: #0b1c25;
-    background-image:
-      radial-gradient(
-        900px 520px at 12% -8%,
-        rgba(95, 176, 183, 0.1),
-        transparent 60%
-      ),
-      radial-gradient(
-        900px 600px at 108% 10%,
-        rgba(47, 111, 143, 0.14),
-        transparent 55%
-      ),
-      radial-gradient(
-        circle at 100% 50%,
-        transparent 19%,
-        rgba(127, 203, 209, 0.05) 20%,
-        rgba(127, 203, 209, 0.05) 33%,
-        transparent 34%
-      ),
-      radial-gradient(
-        circle at 0% 50%,
-        transparent 19%,
-        rgba(47, 111, 143, 0.07) 20%,
-        rgba(47, 111, 143, 0.07) 33%,
-        transparent 34%
-      );
-    background-size:
-      100% 100%,
-      100% 100%,
-      96px 96px,
-      96px 96px;
-    background-position:
-      0 0,
-      0 0,
-      0 0,
-      48px 48px;
-    background-repeat: no-repeat, no-repeat, repeat, repeat;
-    background-attachment: fixed, fixed, fixed, fixed;
   }
 
   html {

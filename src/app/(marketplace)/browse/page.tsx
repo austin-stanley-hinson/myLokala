@@ -1,5 +1,4 @@
-import RedeemDealButton from "@/components/deals/redeem-deal-button";
-import SaveDealButton from "@/components/deals/save-deal-button";
+import { RedeemInAppNote } from "@/components/deals/redeem-in-app-note";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, formatExpiry, type Deal } from "@/types/deal";
 
@@ -20,10 +19,6 @@ export default async function BrowsePage() {
   }
 
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { data: deals, error: dealsError } = await supabase
     .from("deals")
@@ -46,19 +41,6 @@ export default async function BrowsePage() {
 
   const rows = (deals ?? []) as Deal[];
 
-  let savedDealIds = new Set<string>();
-  if (user && rows.length > 0) {
-    const { data: saved } = await supabase
-      .from("saved_deals")
-      .select("deal_id")
-      .eq("user_id", user.id)
-      .in(
-        "deal_id",
-        rows.map((deal) => deal.id),
-      );
-    savedDealIds = new Set((saved ?? []).map((row) => row.deal_id as string));
-  }
-
   return (
     <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:px-6 sm:py-18">
       <div className="space-y-2">
@@ -75,27 +57,21 @@ export default async function BrowsePage() {
           No active deals right now.
         </p>
       ) : (
-        <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-10 grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((deal) => (
             <li
               key={deal.id}
               className="flex flex-col rounded-2xl border border-border/70 bg-card p-6 shadow-sm"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-base font-medium text-muted-foreground">
-                    {deal.business_name ?? "Local business"}
+              <div className="min-w-0">
+                <p className="truncate text-base font-medium text-muted-foreground">
+                  {deal.business_name ?? "Local business"}
+                </p>
+                {deal.category ? (
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-lokala-green-dark">
+                    {deal.category}
                   </p>
-                  {deal.category ? (
-                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-lokala-green-dark">
-                      {deal.category}
-                    </p>
-                  ) : null}
-                </div>
-                <SaveDealButton
-                  dealId={deal.id}
-                  initialSaved={savedDealIds.has(deal.id)}
-                />
+                ) : null}
               </div>
 
               <h2 className="mt-3 line-clamp-2 text-xl font-semibold text-primary-dark">
@@ -103,15 +79,15 @@ export default async function BrowsePage() {
               </h2>
               <p className="mt-2 line-clamp-3 text-base leading-relaxed text-muted-foreground">
                 {deal.discount_detail ??
-                  "A great local offer—redeem while it lasts."}
+                  "A great local offer while it lasts."}
               </p>
 
-              <div className="mt-4 flex items-center justify-end gap-3 text-sm text-muted-foreground">
+              <div className="mt-4 flex items-center gap-3 text-sm text-muted-foreground">
                 <p>{formatExpiry(deal.expires_at)}</p>
               </div>
 
-              <div className="mt-5 pt-1">
-                <RedeemDealButton deal={deal} />
+              <div className="mt-4">
+                <RedeemInAppNote />
               </div>
             </li>
           ))}
