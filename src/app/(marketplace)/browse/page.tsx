@@ -57,7 +57,7 @@ export default async function BrowsePage() {
           No active deals right now.
         </p>
       ) : (
-        <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-10 grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((deal) => (
             <li
               key={deal.id}
@@ -86,7 +86,7 @@ export default async function BrowsePage() {
                 <p>{formatExpiry(deal.expires_at)}</p>
               </div>
 
-              <div className="mt-auto pt-5">
+              <div className="mt-4">
                 <RedeemInAppNote />
               </div>
             </li>

@@ -3,6 +3,7 @@ import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardRightRail } from "@/components/dashboard/dashboard-right-rail";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { HomeDealsSection } from "@/components/dashboard/home-deals-section";
+import { resolveBusinessOwner } from "@/lib/auth/business-profile";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, type Deal } from "@/types/deal";
 
@@ -95,9 +96,15 @@ export default async function HomePage() {
   const categories = ["All", ...distinctCategories];
 
   const userName = user?.user_metadata?.full_name as string | undefined;
+  const isBusiness = user ? await resolveBusinessOwner(supabase, user) : false;
 
   return (
-    <DashboardShell userName={userName} rightRail={<DashboardRightRail />}>
+    <DashboardShell
+      userName={userName}
+      isSignedIn={Boolean(user)}
+      isBusiness={isBusiness}
+      rightRail={<DashboardRightRail />}
+    >
       <div className="flex flex-col gap-8">
         <DashboardHero images={HERO_IMAGES} />
 

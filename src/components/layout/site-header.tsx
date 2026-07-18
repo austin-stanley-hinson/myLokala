@@ -163,13 +163,9 @@ export function SiteHeader() {
         { href: "/signup", label: "For Businesses" },
       ];
 
-  // Customers (not business owners) keep their redemptions link.
-  if (ready && user && !isBusinessNav) {
-    navItems.push({ href: "/my-redemptions", label: "My Redemptions" });
-  }
-
-  // Account dropdown actions. Business owners get quick links into their
-  // account areas; "Change password" (the reset flow) is available to everyone.
+  // The web app is public browsing + a merchant portal — no customer account
+  // UX. Only business owners get account links; any non-business signed-in user
+  // sees a minimal menu (a note pointing to the mobile app + sign out).
   type AccountItem = { href: string; label: string; icon: LucideIcon };
   const accountMenuItems: AccountItem[] = businessOwner
     ? [
@@ -177,7 +173,7 @@ export function SiteHeader() {
         { href: "/business/payments", label: "Payments", icon: CreditCard },
         { href: "/forgot-password", label: "Change password", icon: KeyRound },
       ]
-    : [{ href: "/forgot-password", label: "Change password", icon: KeyRound }];
+    : [];
 
   // A link is active on its exact route; section roots like "/" and "/business"
   // stay exact so they don't light up on their nested pages.
@@ -197,11 +193,11 @@ export function SiteHeader() {
         >
           {!logoError ? (
             <Image
-              src="/lokala-logo.png"
+              src="/logo-try-1.png"
               alt=""
-              width={120}
-              height={48}
-              className="h-10 w-auto max-h-10 rounded-2xl bg-white object-contain object-left p-1 shadow-lokala-soft sm:h-11 sm:max-h-11"
+              width={44}
+              height={44}
+              className="size-10 shrink-0 object-contain sm:size-11"
               priority
               onError={() => setLogoError(true)}
             />
@@ -280,6 +276,11 @@ export function SiteHeader() {
                   role="menu"
                   className="absolute right-0 top-full z-50 mt-2 min-w-[13rem] overflow-hidden rounded-2xl border border-lokala-border bg-white py-1 shadow-lokala-card"
                 >
+                  {!businessOwner ? (
+                    <p className="px-4 py-3 text-xs font-semibold leading-5 text-lokala-muted">
+                      Customer features are available in the Lokala app.
+                    </p>
+                  ) : null}
                   {accountMenuItems.map((item) => {
                     const Icon = item.icon;
                     return (

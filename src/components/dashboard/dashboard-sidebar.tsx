@@ -3,37 +3,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Gift,
-  Home,
-  Settings,
-  Tag,
-  UserRound,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Gift, Home, Tag, type LucideIcon } from "lucide-react";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { cn } from "@/lib/utils";
 
 type NavLink = { href: string; label: string; icon: LucideIcon };
-type NavPlaceholder = { label: string; icon: LucideIcon };
 
-// Clickable items point ONLY at real, existing routes. Customer redemption is
-// mobile-app only, so no "Redemptions" account entry is surfaced on the web.
+// Clickable items point ONLY at real, existing routes. The web app is public
+// browsing + a merchant portal, so no customer-account entries (saved, profile,
+// settings, redemptions) are surfaced here.
 const PRIMARY_NAV: NavLink[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/browse", label: "Deals", icon: Tag },
   { href: "/gift-certificates", label: "Gift Certificates", icon: Gift },
-];
-
-// Concept nav items that have no web backend/route yet. Rendered as clearly
-// disabled, non-clickable placeholders purely to preserve the app-like sidebar
-// structure. These must not ship as if functional (see Phase 1 report).
-const PLACEHOLDER_NAV: NavPlaceholder[] = [
-  { label: "Community", icon: Users },
-  { label: "Profile", icon: UserRound },
-  { label: "Settings", icon: Settings },
 ];
 
 export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -51,13 +34,15 @@ export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void }) {
         className="flex items-center gap-2.5 px-2 outline-none focus-visible:ring-2 focus-visible:ring-lokala-green"
         aria-label="Lokala home"
       >
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-lokala-soft">
+        {/* Single mark — no nested white tile. Note: logo-try-1.png has a baked
+            near-white background (RGB, not transparent). */}
+        <span className="relative size-9 shrink-0 overflow-hidden rounded-xl bg-lokala-cream">
           <Image
             src="/logo-try-1.png"
             alt=""
-            width={44}
-            height={44}
-            className="size-8 object-contain"
+            width={36}
+            height={36}
+            className="size-9 object-cover"
             priority
           />
         </span>
@@ -84,26 +69,6 @@ export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void }) {
               <Icon className="size-5 shrink-0" aria-hidden />
               {item.label}
             </Link>
-          );
-        })}
-
-        <div className="my-2 border-t border-lokala-border" />
-
-        {PLACEHOLDER_NAV.map((item) => {
-          const Icon = item.icon;
-          return (
-            <span
-              key={item.label}
-              aria-disabled="true"
-              title="Coming soon"
-              className="flex cursor-not-allowed items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold text-lokala-muted/70"
-            >
-              <Icon className="size-5 shrink-0" aria-hidden />
-              {item.label}
-              <span className="ml-auto rounded-full bg-lokala-cream px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-lokala-muted">
-                Soon
-              </span>
-            </span>
           );
         })}
       </nav>

@@ -22,10 +22,14 @@ export function DashboardShell({
   children,
   rightRail,
   userName,
+  isSignedIn,
+  isBusiness,
 }: {
   children: ReactNode;
   rightRail?: ReactNode;
   userName?: string;
+  isSignedIn?: boolean;
+  isBusiness?: boolean;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -39,6 +43,8 @@ export function DashboardShell({
         <div className="flex min-w-0 flex-1 flex-col gap-6 py-4">
           <DashboardHeader
             userName={userName}
+            isSignedIn={isSignedIn}
+            isBusiness={isBusiness}
             onMenuClick={() => setMobileOpen(true)}
           />
 

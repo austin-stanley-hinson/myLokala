@@ -108,10 +108,10 @@ function LocalImpactCard() {
         </h3>
       </div>
       <p className="mt-3 text-sm leading-6 text-lokala-muted">
-        Every claim helps small businesses stay visible in the community.
+        Every local deal helps small businesses stay visible in the community.
       </p>
       <span className="mt-3 inline-block rounded-full bg-lokala-cream px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-lokala-muted">
-        Rewards experience coming soon
+        More community tools coming soon
       </span>
     </SurfaceCard>
   );

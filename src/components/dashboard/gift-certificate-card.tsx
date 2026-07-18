@@ -2,23 +2,23 @@ import Image from "next/image";
 import Link from "next/link";
 
 /**
- * Gift certificate promo card, sized for the dashboard right rail (compact,
- * vertical). Uses the Lokala logo as the thumbnail (placeholder — there is no
- * gift-certificate product image asset yet) and links to the existing
- * /gift-certificates route. No backend gift certificate logic is involved. The
- * sun/yellow accent is reserved for this gift certificate surface.
+ * Gift certificate promo card for the dashboard right rail.
+ * Links to the existing /gift-certificates route. Uses /logo-try-1.png in a
+ * single clean container (no nested white-on-white shapes).
  */
 export function GiftCertificateCard() {
   return (
     <section className="overflow-hidden rounded-3xl border border-lokala-green-dark/20 bg-gradient-to-br from-lokala-green to-lokala-green-dark p-5 shadow-lokala-card">
-      <div className="flex items-center gap-3.5">
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white shadow-lokala-soft">
+      <div className="flex items-center gap-3">
+        {/* One cream tile — mark fills it. Avoids a second white box around the
+            asset (logo-try-1.png already has a baked near-white background). */}
+        <span className="relative size-11 shrink-0 overflow-hidden rounded-2xl bg-lokala-cream shadow-lokala-soft">
           <Image
             src="/logo-try-1.png"
             alt="Lokala"
-            width={56}
-            height={56}
-            className="size-10 object-contain"
+            width={44}
+            height={44}
+            className="size-11 object-cover"
           />
         </span>
         <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/80">
@@ -30,7 +30,7 @@ export function GiftCertificateCard() {
         Send local love, anytime.
       </h3>
       <p className="mt-1 text-sm font-medium text-white/90">
-        Gift spending power at participating Waterville businesses.
+        Send a gift certificate they can use at local Waterville businesses.
       </p>
 
       <Link
