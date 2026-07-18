@@ -6,9 +6,13 @@ import { DashboardRightRail } from "@/components/dashboard/dashboard-right-rail"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { HomeDealsSection } from "@/components/dashboard/home-deals-section";
 import { resolveBusinessOwner } from "@/lib/auth/business-profile";
+import { getHomepageFeaturedDeals } from "@/lib/deals/homepage-featured";
 import { buildPageMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { DEAL_LIST_COLUMNS, type Deal } from "@/types/deal";
+
+/** Candidate pool size before homepage scoring picks the featured 6. */
+const HOMEPAGE_DEAL_CANDIDATE_LIMIT = 48;
 
 export const dynamic = "force-dynamic";
 
@@ -71,12 +75,14 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Load a candidate pool of active deals, then score/select a polished
+  // homepage featured set. Browse still loads the full active catalog.
   const { data: deals, error: dealsError } = await supabase
     .from("deals")
     .select(DEAL_LIST_COLUMNS)
     .eq("is_active", true)
     .order("created_at", { ascending: false })
-    .limit(6);
+    .limit(HOMEPAGE_DEAL_CANDIDATE_LIMIT);
 
   if (dealsError) {
     console.error("Deals query error:", dealsError);
@@ -92,7 +98,7 @@ export default async function HomePage() {
     );
   }
 
-  const rows = (deals ?? []) as Deal[];
+  const rows = getHomepageFeaturedDeals((deals ?? []) as Deal[]);
 
   // Category chips derived from the actual category values on the loaded deals
   // (no invented taxonomy), with an "All" option first.
