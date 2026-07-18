@@ -30,6 +30,11 @@ export function SiteFooter() {
             <p className={columnHeadingClass}>For Shoppers</p>
             <ul className="flex flex-col gap-2.5">
               <li>
+                <Link href="/" className={footerLinkClass}>
+                  Home
+                </Link>
+              </li>
+              <li>
                 <Link href="/browse" className={footerLinkClass}>
                   Browse Deals
                 </Link>
@@ -37,11 +42,6 @@ export function SiteFooter() {
               <li>
                 <Link href="/gift-certificates" className={footerLinkClass}>
                   Gift Certificates
-                </Link>
-              </li>
-              <li>
-                <Link href="/my-redemptions" className={footerLinkClass}>
-                  My Redemptions
                 </Link>
               </li>
             </ul>
@@ -56,7 +56,12 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="/restaurant/dashboard" className={footerLinkClass}>
+                <Link href="/login" className={footerLinkClass}>
+                  Business Sign In
+                </Link>
+              </li>
+              <li>
+                <Link href="/login" className={footerLinkClass}>
                   Business Dashboard
                 </Link>
               </li>
@@ -88,22 +93,18 @@ export function SiteFooter() {
               </li>
             </ul>
             <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1">
-              <a
-                href="https://www.instagram.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={footerLinkClass}
+              <span
+                className="cursor-default text-sm font-medium text-lokala-muted/70"
+                title="Coming soon"
               >
-                Instagram
-              </a>
-              <a
-                href="https://www.linkedin.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={footerLinkClass}
+                Instagram · Coming soon
+              </span>
+              <span
+                className="cursor-default text-sm font-medium text-lokala-muted/70"
+                title="Coming soon"
               >
-                LinkedIn
-              </a>
+                LinkedIn · Coming soon
+              </span>
             </div>
           </nav>
         </div>

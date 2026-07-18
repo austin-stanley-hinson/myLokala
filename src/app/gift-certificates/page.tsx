@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
+import { calculateGiftCardTotal } from "@/lib/pricing/gift-card-fees";
+
 const AMOUNT_PRESETS = [25, 50, 100, 250] as const;
 
 const PAYMENT_METHODS = [
@@ -31,13 +33,11 @@ export default function GiftCertificatesPage() {
   const [note, setNote] = useState("");
   const [method, setMethod] = useState<PaymentMethodId>("card");
 
-  const { processingFee, total } = useMemo(() => {
-    const fee = Math.round(amount * 0.04 * 100) / 100;
-    return {
-      processingFee: fee,
-      total: amount + fee,
-    };
-  }, [amount]);
+  // Card pricing only in UI today; helper also supports bank for a future selector.
+  const { consumerFee: processingFee, total } = useMemo(
+    () => calculateGiftCardTotal(amount, { paymentMethod: method }),
+    [amount, method],
+  );
 
   return (
     <div className="w-full">
@@ -255,9 +255,13 @@ export default function GiftCertificatesPage() {
                     <span className="font-bold">{currency(amount)}</span>
                   </div>
                   <div className="flex justify-between text-lokala-muted">
-                    <span>Payment Processing Fee</span>
+                    <span>Lokala processing fee</span>
                     <span>{currency(processingFee)}</span>
                   </div>
+                  <p className="text-xs leading-5 text-lokala-muted">
+                    This fee is added to your gift certificate purchase. Checkout
+                    is not live yet.
+                  </p>
 
                   <div className="border-t border-lokala-border pt-4">
                     <div className="flex items-end justify-between">

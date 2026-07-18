@@ -6,24 +6,20 @@ import { GiftCertificateCard } from "@/components/dashboard/gift-certificate-car
 import { SurfaceCard } from "@/components/dashboard/surface-card";
 
 /**
- * Homepage dashboard right rail. Gift certificates, new-business CTA,
- * explore links (real routes only), and static community cards.
+ * Homepage right rail — support cards only.
+ * Explore / secondary navigation lives in the left sidebar.
  */
 export function DashboardRightRail() {
   return (
     <div className="flex flex-col gap-5">
       <GiftCertificateCard />
       <ListYourBusinessCard />
-      <ExploreLinksCard />
       <CommunitySpotlightCard />
       <LocalImpactCard />
     </div>
   );
 }
 
-/**
- * New-merchant CTA only. Existing owners use Business sign in in the header.
- */
 function ListYourBusinessCard() {
   return (
     <SurfaceCard className="p-5">
@@ -34,44 +30,14 @@ function ListYourBusinessCard() {
         List your business on Lokala and help nearby customers discover your
         deals and gift certificates.
       </p>
-      <Link
-        href="/signup"
-        className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-lokala-green px-4 py-2.5 text-center text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark sm:w-auto"
-      >
-        List your business
-      </Link>
-    </SurfaceCard>
-  );
-}
-
-/**
- * Small explore/help links — only real existing routes (no broken links).
- */
-function ExploreLinksCard() {
-  const links = [
-    { href: "/about", label: "About Lokala" },
-    { href: "/contact", label: "Contact" },
-    { href: "/signup", label: "For businesses" },
-    { href: "/gift-certificates", label: "Gift certificates" },
-  ] as const;
-
-  return (
-    <SurfaceCard className="p-5">
-      <h3 className="text-sm font-extrabold uppercase tracking-[0.14em] text-lokala-green-dark">
-        Explore
-      </h3>
-      <ul className="mt-3 flex flex-col gap-2">
-        {links.map((link) => (
-          <li key={link.href}>
-            <Link
-              href={link.href}
-              className="text-sm font-bold text-lokala-brown transition hover:text-lokala-green-dark"
-            >
-              {link.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-4 flex justify-center">
+        <Link
+          href="/signup"
+          className="inline-flex w-full max-w-xs items-center justify-center rounded-full bg-lokala-green px-5 py-2.5 text-center text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
+        >
+          List your business
+        </Link>
+      </div>
     </SurfaceCard>
   );
 }

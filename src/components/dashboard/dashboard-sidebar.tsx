@@ -10,14 +10,18 @@ import { cn } from "@/lib/utils";
 
 type NavLink = { href: string; label: string; icon: LucideIcon };
 
-// Clickable items point ONLY at real, existing routes. The web app is public
-// browsing + a merchant portal, so no customer-account entries (saved, profile,
-// settings, redemptions) are surfaced here.
 const PRIMARY_NAV: NavLink[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/browse", label: "Deals", icon: Tag },
   { href: "/gift-certificates", label: "Gift Certificates", icon: Gift },
 ];
+
+const EXPLORE_LINKS = [
+  { href: "/about", label: "About Lokala" },
+  { href: "/contact", label: "Contact" },
+  { href: "/signup", label: "For businesses" },
+  { href: "/gift-certificates", label: "Gift certificates" },
+] as const;
 
 export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -34,8 +38,6 @@ export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void }) {
         className="flex items-center gap-2.5 px-2 outline-none focus-visible:ring-2 focus-visible:ring-lokala-green"
         aria-label="Lokala home"
       >
-        {/* Single mark — no nested white tile. Note: logo-try-1.png has a baked
-            near-white background (RGB, not transparent). */}
         <span className="relative size-9 shrink-0 overflow-hidden rounded-xl bg-lokala-cream">
           <Image
             src="/logo-try-1.png"
@@ -49,7 +51,7 @@ export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void }) {
         <BrandWordmark className="text-xl" />
       </Link>
 
-      <nav className="flex flex-1 flex-col gap-1" aria-label="Dashboard">
+      <nav className="flex flex-col gap-1" aria-label="Dashboard">
         {PRIMARY_NAV.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -73,22 +75,27 @@ export function DashboardSidebar({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      {/* Bottom promo/help card — links to the real business sign-up route. */}
-      <Link
-        href="/signup"
-        onClick={onNavigate}
-        className="rounded-3xl border border-lokala-green-light bg-gradient-to-br from-lokala-green-soft to-lokala-green-light p-4 shadow-lokala-soft transition hover:-translate-y-0.5"
+      <nav
+        aria-label="Explore"
+        className="mt-auto border-t border-lokala-border pt-4"
       >
-        <p className="text-sm font-extrabold text-lokala-brown-dark">
-          Own a local business?
+        <p className="px-3 text-[11px] font-extrabold uppercase tracking-[0.16em] text-lokala-muted">
+          Explore
         </p>
-        <p className="mt-1 text-xs leading-5 text-lokala-brown">
-          List it on Lokala and reach nearby customers.
-        </p>
-        <span className="mt-3 inline-block rounded-full bg-lokala-green px-3 py-1.5 text-xs font-bold text-white">
-          Get started
-        </span>
-      </Link>
+        <ul className="mt-2 flex flex-col gap-0.5">
+          {EXPLORE_LINKS.map((link) => (
+            <li key={link.href + link.label}>
+              <Link
+                href={link.href}
+                onClick={onNavigate}
+                className="block rounded-xl px-3 py-1.5 text-sm font-semibold text-lokala-brown transition hover:bg-lokala-cream hover:text-lokala-green-dark"
+              >
+                {link.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </div>
   );
 }
