@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Fraunces, Geist_Mono, Inter } from "next/font/google";
 
 import { AlertBanner } from "@/components/layout/alert-banner";
+import { BusinessFooter } from "@/components/layout/business-footer";
+import { HideOnBusiness } from "@/components/layout/hide-on-business";
 import { HideOnHome } from "@/components/layout/hide-on-home";
 import { PageBackground } from "@/components/layout/page-background";
 import { SiteFooter } from "@/components/layout/site-footer";
@@ -88,8 +90,11 @@ export default function RootLayout({
         </HideOnHome>
         <main className="flex flex-1 flex-col">{children}</main>
         <HideOnHome>
-          <SiteFooter />
+          <HideOnBusiness>
+            <SiteFooter />
+          </HideOnBusiness>
         </HideOnHome>
+        <BusinessFooter />
       </body>
     </html>
   );

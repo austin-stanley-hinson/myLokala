@@ -28,7 +28,8 @@ function getInitials(name?: string): string {
  * The web app is public browsing + a merchant portal — it does NOT offer a
  * customer login/account experience. So the account cluster only ever shows
  * business-focused actions:
- *  - signed out: "Business sign in" (/login) + "List your business" (/signup)
+ *  - signed out: "Business sign in" (/login) only — new merchants use the
+ *    right-rail "List your business" CTA
  *  - business owner: account menu into the existing /business areas + sign out
  *  - a non-business user (edge case): minimal menu — a note that customer
  *    features live in the Lokala app, plus sign out
@@ -99,20 +100,12 @@ export function DashboardHeader({
         </span>
 
         {!isSignedIn ? (
-          <>
-            <Link
-              href="/signup"
-              className="hidden rounded-full border border-lokala-border bg-white px-4 py-2.5 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light sm:inline-block"
-            >
-              List your business
-            </Link>
-            <Link
-              href="/login"
-              className="rounded-full bg-lokala-green px-4 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
-            >
-              Business sign in
-            </Link>
-          </>
+          <Link
+            href="/login"
+            className="rounded-full bg-lokala-green px-4 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
+          >
+            Business sign in
+          </Link>
         ) : (
           <div ref={menuRef} className="relative">
             <button
