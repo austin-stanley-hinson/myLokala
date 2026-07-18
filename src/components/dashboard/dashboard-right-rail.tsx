@@ -6,20 +6,15 @@ import { GiftCertificateCard } from "@/components/dashboard/gift-certificate-car
 import { SurfaceCard } from "@/components/dashboard/surface-card";
 
 /**
- * Homepage dashboard right rail. On xl it sits beside the main column; below
- * xl it stacks under the content (handled by DashboardShell). Contains the
- * gift certificate card, a business sign-in prompt, and two clearly-marked
- * static placeholder cards (Community Spotlight, Local Impact).
- *
- * Saved/bookmark UI has been intentionally removed from the web experience for
- * now (customers use the Lokala mobile app); the saved_deals backend is
- * untouched.
+ * Homepage dashboard right rail. Gift certificates, new-business CTA,
+ * explore links (real routes only), and static community cards.
  */
 export function DashboardRightRail() {
   return (
     <div className="flex flex-col gap-5">
       <GiftCertificateCard />
-      <BusinessSignInCard />
+      <ListYourBusinessCard />
+      <ExploreLinksCard />
       <CommunitySpotlightCard />
       <LocalImpactCard />
     </div>
@@ -27,42 +22,60 @@ export function DashboardRightRail() {
 }
 
 /**
- * Directs local business owners/merchants to the existing business auth routes.
- * The web sign-in is B2B; customers browse here and act in the mobile app.
+ * New-merchant CTA only. Existing owners use Business sign in in the header.
  */
-function BusinessSignInCard() {
+function ListYourBusinessCard() {
   return (
     <SurfaceCard className="p-5">
       <h3 className="text-base font-extrabold text-lokala-brown-dark">
         For local businesses
       </h3>
       <p className="mt-2 text-sm leading-6 text-lokala-muted">
-        Own a Waterville business? Sign in to manage your listings and deals, or
-        create an account to get started.
+        List your business on Lokala and help nearby customers discover your
+        deals and gift certificates.
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Link
-          href="/login"
-          className="inline-block rounded-full bg-lokala-green px-4 py-2 text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
-        >
-          Business sign in
-        </Link>
-        <Link
-          href="/signup"
-          className="inline-block rounded-full border border-lokala-border bg-white px-4 py-2 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
-        >
-          List your business
-        </Link>
-      </div>
+      <Link
+        href="/signup"
+        className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-lokala-green px-4 py-2.5 text-center text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark sm:w-auto"
+      >
+        List your business
+      </Link>
     </SurfaceCard>
   );
 }
 
 /**
- * Static placeholder — no community/spotlight backend exists. Content is
- * generic and honest (no fake business names or claims). Uses an existing
- * Waterville photo as the cover image.
+ * Small explore/help links — only real existing routes (no broken links).
  */
+function ExploreLinksCard() {
+  const links = [
+    { href: "/about", label: "About Lokala" },
+    { href: "/contact", label: "Contact" },
+    { href: "/signup", label: "For businesses" },
+    { href: "/gift-certificates", label: "Gift certificates" },
+  ] as const;
+
+  return (
+    <SurfaceCard className="p-5">
+      <h3 className="text-sm font-extrabold uppercase tracking-[0.14em] text-lokala-green-dark">
+        Explore
+      </h3>
+      <ul className="mt-3 flex flex-col gap-2">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              className="text-sm font-bold text-lokala-brown transition hover:text-lokala-green-dark"
+            >
+              {link.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </SurfaceCard>
+  );
+}
+
 function CommunitySpotlightCard() {
   return (
     <SurfaceCard className="overflow-hidden p-0">
@@ -92,10 +105,6 @@ function CommunitySpotlightCard() {
   );
 }
 
-/**
- * Static placeholder — there is no rewards backend. Copy intentionally avoids
- * implying the user has earned anything.
- */
 function LocalImpactCard() {
   return (
     <SurfaceCard className="p-5">

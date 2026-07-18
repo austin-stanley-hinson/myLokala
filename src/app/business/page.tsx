@@ -1,9 +1,22 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CreditCard, Gift, Store } from "lucide-react";
 
 import { getBusinessContext, isPaymentsConnected } from "@/lib/auth/business-context";
+import { buildPageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Safe generic metadata for the business portal entry. The page itself remains
+ * auth-gated (redirects non-owners). Not listed in the public sitemap.
+ */
+export const metadata: Metadata = buildPageMetadata({
+  title: "Lokala for Businesses | Local Deals and Gift Certificates",
+  description:
+    "Create a Lokala business account to manage your local business profile, prepare gift certificates, and connect payments securely.",
+  path: "/business",
+});
 
 export default async function BusinessOverviewPage() {
   const { ownerName, businessName, paymentAccount } = await getBusinessContext();

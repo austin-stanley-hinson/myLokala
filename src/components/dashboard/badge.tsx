@@ -7,8 +7,8 @@ const badgeStyles = {
   active: "bg-lokala-green-light text-lokala-green-dark",
   // Neutral / inactive
   neutral: "bg-lokala-brown-soft text-lokala-brown",
-  // Category label
-  category: "bg-lokala-sky text-lokala-sky-dark",
+  // Category label — soft cream/brown (not blue)
+  category: "border border-lokala-border bg-lokala-cream text-lokala-brown",
   // Gift-certificate / sun accent (reserved for gift certificate surfaces)
   gift: "bg-lokala-sun-soft text-lokala-brown-dark",
 } as const;
