@@ -4,12 +4,13 @@ import {
   getBusinessContext,
   isPaymentsConnected,
 } from "@/lib/auth/business-context";
+import { BusinessQrSection } from "@/components/business/business-qr-section";
 import { GiftCertificatesSection } from "@/components/business/gift-certificates-section";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessGiftCertificatesPage() {
-  const { paymentAccount } = await getBusinessContext();
+  const { userId, businessName, paymentAccount } = await getBusinessContext();
   const connected = isPaymentsConnected(paymentAccount);
 
   return (
@@ -25,6 +26,11 @@ export default async function BusinessGiftCertificatesPage() {
           Sell gift certificates for your business to local customers.
         </p>
       </header>
+
+      <BusinessQrSection
+        businessOwnerId={userId}
+        businessName={businessName}
+      />
 
       {!connected ? (
         <p className="rounded-2xl border border-lokala-border bg-lokala-brown-soft/40 px-4 py-3 text-sm text-lokala-brown">
