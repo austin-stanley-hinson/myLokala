@@ -23,6 +23,7 @@ export default function robots(): MetadataRoute.Robots {
         "/business/profile",
         "/business/payments",
         "/business/gift-certificates",
+        "/pay/",
       ],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,

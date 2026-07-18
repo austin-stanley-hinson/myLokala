@@ -40,16 +40,16 @@ function BusinessSignInCard() {
         Own a Waterville business? Sign in to manage your listings and deals, or
         create an account to get started.
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-stretch">
         <Link
           href="/login"
-          className="inline-block rounded-full bg-lokala-green px-4 py-2 text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
+          className="inline-flex flex-1 items-center justify-center rounded-full bg-lokala-green px-3 py-2.5 text-center text-sm font-bold text-white shadow-lokala-soft transition hover:-translate-y-0.5 hover:bg-lokala-green-dark"
         >
           Business sign in
         </Link>
         <Link
           href="/signup"
-          className="inline-block rounded-full border border-lokala-border bg-white px-4 py-2 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
+          className="inline-flex flex-1 items-center justify-center rounded-full border border-lokala-border bg-white px-3 py-2.5 text-center text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
         >
           List your business
         </Link>
