@@ -5,6 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 export async function POST(req: Request) {
   try {
     const { amount, businessId } = await req.json();
+
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json(
+        { error: "A positive amount is required." },
+        { status: 400 },
+      );
+    }
+
     const supabase = await createClient();
 
     let ownerId = businessId;
@@ -59,6 +67,15 @@ export async function POST(req: Request) {
       connectedAccountId = paymentAccount?.stripe_account_id;
     }
 
+    // No connected account means we could not resolve the merchant. Fail loudly
+    // rather than silently charging the platform account instead of the merchant.
+    if (!connectedAccountId) {
+      return NextResponse.json(
+        { error: "This business is not set up to accept payments yet." },
+        { status: 404 },
+      );
+    }
+
     const stripe = getStripe();
 
     // 3. Create the payment intent
@@ -66,13 +83,9 @@ export async function POST(req: Request) {
       amount: Math.round(amount * 100),
       currency: "usd",
       automatic_payment_methods: { enabled: true },
-      ...(connectedAccountId
-        ? {
-            transfer_data: {
-              destination: connectedAccountId,
-            },
-          }
-        : {}),
+      transfer_data: {
+        destination: connectedAccountId,
+      },
     });
 
     return NextResponse.json({ clientSecret: paymentIntent.client_secret });
