@@ -45,6 +45,17 @@ function logFailure(category: FailureCategory, detail?: unknown): void {
   console.error(`[payment-intent] ${category}`, detail ?? "");
 }
 
+// Every response from this route carries a Stripe client secret or a
+// payment-related error, so none of it may be cached by the browser or any
+// shared/CDN cache. Centralize the JSON + no-store header here so success and
+// error paths stay consistent.
+function jsonResponse(body: unknown, status = 200): NextResponse {
+  return NextResponse.json(body, {
+    status,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
 // Generic, non-revealing client messages. Server logs carry the real category.
 const CLIENT_MESSAGE = {
   invalidAmount: "A positive amount is required.",
@@ -69,10 +80,7 @@ export async function POST(req: Request) {
       body = await req.json();
     } catch (err) {
       logFailure("invalid_body", err);
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.invalidBody },
-        { status: 400 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.invalidBody }, 400);
     }
 
     const { amount, businessId } = (body ?? {}) as {
@@ -83,28 +91,19 @@ export async function POST(req: Request) {
     // 1. Validate + normalize the amount (dollars -> integer cents).
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
       logFailure("invalid_amount", { amount });
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.invalidAmount },
-        { status: 400 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.invalidAmount }, 400);
     }
 
     const amountCents = Math.round(amount * 100);
     if (amountCents < 1) {
       logFailure("invalid_amount", { amount, amountCents });
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.invalidAmount },
-        { status: 400 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.invalidAmount }, 400);
     }
 
     // 2. Validate the business reference (public_code or legacy UUID).
     if (typeof businessId !== "string" || businessId.trim().length === 0) {
       logFailure("invalid_business_ref", { businessId });
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.invalidBusinessRef },
-        { status: 400 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.invalidBusinessRef }, 400);
     }
 
     const reference = businessId.trim();
@@ -131,10 +130,7 @@ export async function POST(req: Request) {
 
       if (qrError) {
         logFailure("db_error", qrError);
-        return NextResponse.json(
-          { error: CLIENT_MESSAGE.notAvailable },
-          { status: 404 },
-        );
+        return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
       }
 
       if (!qr?.business_owner_id) {
@@ -147,10 +143,7 @@ export async function POST(req: Request) {
           .maybeSingle<{ is_active: boolean }>();
 
         logFailure(anyQr ? "qr_inactive" : "qr_not_found", { reference });
-        return NextResponse.json(
-          { error: CLIENT_MESSAGE.notAvailable },
-          { status: 404 },
-        );
+        return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
       }
 
       ownerId = qr.business_owner_id;
@@ -167,26 +160,17 @@ export async function POST(req: Request) {
 
     if (accountError) {
       logFailure("db_error", accountError);
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.notAvailable },
-        { status: 404 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
     }
 
     if (!account) {
       logFailure("payment_account_not_found", { ownerId });
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.notAvailable },
-        { status: 404 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
     }
 
     if (!account.stripe_account_id) {
       logFailure("no_connected_account", { ownerId });
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.notAvailable },
-        { status: 404 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
     }
 
     // Payment readiness uses the same definition as the rest of the app
@@ -199,10 +183,7 @@ export async function POST(req: Request) {
         charges_enabled: account.charges_enabled,
         payouts_enabled: account.payouts_enabled,
       });
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.notAvailable },
-        { status: 404 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
     }
 
     const connectedAccountId = account.stripe_account_id;
@@ -222,21 +203,15 @@ export async function POST(req: Request) {
         },
       });
 
-      return NextResponse.json({ clientSecret: paymentIntent.client_secret });
+      return jsonResponse({ clientSecret: paymentIntent.client_secret });
     } catch (err) {
       logFailure("stripe_create_failed", err);
-      return NextResponse.json(
-        { error: CLIENT_MESSAGE.stripeFailed },
-        { status: 400 },
-      );
+      return jsonResponse({ error: CLIENT_MESSAGE.stripeFailed }, 400);
     }
   } catch (error) {
     // Unexpected failures (e.g. missing server configuration such as
     // SUPABASE_SERVICE_ROLE_KEY / STRIPE_SECRET_KEY). Never leak internals.
     logFailure("server_error", error);
-    return NextResponse.json(
-      { error: CLIENT_MESSAGE.serverError },
-      { status: 500 },
-    );
+    return jsonResponse({ error: CLIENT_MESSAGE.serverError }, 500);
   }
 }
