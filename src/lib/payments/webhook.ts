@@ -35,6 +35,11 @@ export function statusForEventType(eventType: string): PaymentStatus | null {
   }
 }
 
+/** True when the event is a PaymentIntent lifecycle event we handle for the ledger. */
+export function isPaymentIntentLedgerEvent(eventType: string): boolean {
+  return statusForEventType(eventType) !== null;
+}
+
 /**
  * Column patch for a status transition. Timestamps are set on the transition
  * that earns them so reconciliation and receipts do not have to infer them.
