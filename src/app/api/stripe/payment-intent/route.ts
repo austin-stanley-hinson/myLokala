@@ -1,17 +1,32 @@
+import { randomUUID } from "crypto";
+
 import { NextResponse } from "next/server";
 
-import { getStripe } from "@/lib/stripe/server";
+import { resolveApiUserId } from "@/lib/auth/api-user";
+import { createPayment } from "@/lib/payments/create-payment";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isPaymentsConnected } from "@/lib/auth/business-context";
 
 /**
- * Create a Stripe PaymentIntent for a customer paying a business by QR code.
+ * DEPRECATED — create a Stripe PaymentIntent for a customer paying a business
+ * by QR code. Superseded by POST /api/payments.
  *
- * The mobile app scans a permanent QR (https://www.mylokala.com/pay/<public_code>)
- * and POSTs { amount, businessId } here, where `businessId` is the public_code.
- * We resolve public_code -> business owner -> Stripe connected account entirely
- * on the server, then return only the PaymentIntent client secret. The card is
- * collected and confirmed by the mobile Stripe SDK.
+ * Kept alive only so the currently deployed mobile build keeps working. It now
+ * delegates to the durable payment service, so every charge it starts is
+ * recorded in `payment_transactions` and finalized by the Stripe webhook. It no
+ * longer talks to Stripe directly, and it can no longer create a charge that
+ * Lokala has no ledger row for.
+ *
+ * The wire contract is unchanged: POST { amount (DOLLARS), businessId } and the
+ * response is still exactly { clientSecret }, with generic error copy and
+ * `Cache-Control: no-store` on every path.
+ *
+ * Two limitations are inherent to the old contract and are why callers should
+ * migrate:
+ *   * Old clients send no clientRequestId, so one is generated per request. A
+ *     network retry therefore creates a NEW attempt instead of resuming the
+ *     existing one. Only /api/payments is retry-safe.
+ *   * `amount` arrives as dollars and is converted here; /api/payments takes
+ *     integer cents and never has to round.
  *
  * Why the SERVICE ROLE (admin) client: `business_qr_codes` has no anon SELECT
  * policy and `business_payment_accounts` is readable only by its owning
@@ -32,12 +47,9 @@ type FailureCategory =
   | "invalid_business_ref"
   | "invalid_body"
   | "qr_not_found"
-  | "qr_inactive"
-  | "payment_account_not_found"
-  | "no_connected_account"
-  | "not_payment_ready"
-  | "db_error"
-  | "stripe_create_failed"
+  | "legacy_uuid_unresolved"
+  | "not_available"
+  | "create_failed"
   | "server_error";
 
 function logFailure(category: FailureCategory, detail?: unknown): void {
@@ -66,12 +78,21 @@ const CLIENT_MESSAGE = {
   serverError: "Something went wrong. Please try again.",
 } as const;
 
-type PaymentAccountRow = {
-  stripe_account_id: string | null;
-  onboarding_status: string | null;
-  charges_enabled: boolean | null;
-  payouts_enabled: boolean | null;
-};
+/**
+ * Legacy callers could pass the business owner's UUID instead of a QR code.
+ * Translate it to that owner's active public_code so the durable service still
+ * only ever resolves payments through a QR code.
+ */
+async function publicCodeForOwnerId(ownerId: string): Promise<string | null> {
+  const { data } = await createAdminClient()
+    .from("business_qr_codes")
+    .select("public_code")
+    .eq("business_owner_id", ownerId)
+    .eq("is_active", true)
+    .maybeSingle<{ public_code: string }>();
+
+  return data?.public_code ?? null;
+}
 
 export async function POST(req: Request) {
   try {
@@ -107,107 +128,52 @@ export async function POST(req: Request) {
     }
 
     const reference = businessId.trim();
-    const admin = createAdminClient();
-
-    // 3. Resolve the business owner id.
-    let ownerId: string | null = null;
+    let qrPublicCode = reference;
 
     if (UUID_RE.test(reference)) {
-      // Legacy path: older clients passed the business owner's UUID directly.
-      // The current schema has no separate `businesses` table, so the UUID is
-      // treated as the owner id and validated against the payment account below.
-      ownerId = reference;
-    } else {
-      // Primary path: `reference` is a QR public_code. Resolve it to its owner
-      // via the service-role client (bypasses the intentional lack of an anon
-      // SELECT policy on business_qr_codes). Only ACTIVE codes are usable.
-      const { data: qr, error: qrError } = await admin
-        .from("business_qr_codes")
-        .select("business_owner_id")
-        .eq("public_code", reference)
-        .eq("is_active", true)
-        .maybeSingle<{ business_owner_id: string }>();
-
-      if (qrError) {
-        logFailure("db_error", qrError);
+      const resolved = await publicCodeForOwnerId(reference);
+      if (!resolved) {
+        logFailure("legacy_uuid_unresolved", { reference });
         return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
       }
+      qrPublicCode = resolved;
+    }
 
-      if (!qr?.business_owner_id) {
-        // Distinguish "no such code" from "code exists but is inactive" for the
-        // server logs only; the client always gets the same generic 404.
-        const { data: anyQr } = await admin
-          .from("business_qr_codes")
-          .select("is_active")
-          .eq("public_code", reference)
-          .maybeSingle<{ is_active: boolean }>();
+    // 3. Delegate to the durable service: it resolves the merchant, computes
+    //    fees, writes the pending ledger row, then creates one PaymentIntent.
+    //
+    //    The whole amount is treated as the subtotal with no tip, because the
+    //    old contract has no way to express a tip. Fee policy is applied
+    //    server-side exactly as it is for /api/payments.
+    const result = await createPayment({
+      kind: "merchant_qr_payment",
+      // Old clients cannot supply one, so each request is its own attempt.
+      clientRequestId: randomUUID(),
+      qrPublicCode,
+      subtotalCents: amountCents,
+      tipCents: 0,
+      paymentMethod: "card",
+      customerId: await resolveApiUserId(req),
+    });
 
-        logFailure(anyQr ? "qr_inactive" : "qr_not_found", { reference });
+    if (!result.ok) {
+      const category = result.failure.category;
+      logFailure(
+        category === "merchant_unavailable" ? "not_available" : "create_failed",
+        result.failure.detail ?? { category },
+      );
+
+      if (category === "merchant_unavailable") {
         return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
       }
-
-      ownerId = qr.business_owner_id;
-    }
-
-    // 4. Resolve the owner's Stripe connected account and confirm readiness.
-    const { data: account, error: accountError } = await admin
-      .from("business_payment_accounts")
-      .select(
-        "stripe_account_id, onboarding_status, charges_enabled, payouts_enabled",
-      )
-      .eq("owner_id", ownerId)
-      .maybeSingle<PaymentAccountRow>();
-
-    if (accountError) {
-      logFailure("db_error", accountError);
-      return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
-    }
-
-    if (!account) {
-      logFailure("payment_account_not_found", { ownerId });
-      return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
-    }
-
-    if (!account.stripe_account_id) {
-      logFailure("no_connected_account", { ownerId });
-      return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
-    }
-
-    // Payment readiness uses the same definition as the rest of the app
-    // (onboarding complete + charges + payouts). A merchant mid-onboarding or
-    // with charges disabled is not chargeable.
-    if (!isPaymentsConnected(account)) {
-      logFailure("not_payment_ready", {
-        ownerId,
-        onboarding_status: account.onboarding_status,
-        charges_enabled: account.charges_enabled,
-        payouts_enabled: account.payouts_enabled,
-      });
-      return jsonResponse({ error: CLIENT_MESSAGE.notAvailable }, 404);
-    }
-
-    const connectedAccountId = account.stripe_account_id;
-
-    // 5. Only now — merchant fully resolved and ready — create the intent. This
-    // ordering guarantees we never fall back to charging the platform account
-    // when merchant resolution fails.
-    try {
-      const stripe = getStripe();
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amountCents,
-        currency: "usd",
-        automatic_payment_methods: { enabled: true },
-        // Destination charge: funds route to the merchant's connected account.
-        transfer_data: {
-          destination: connectedAccountId,
-        },
-      });
-
-      return jsonResponse({ clientSecret: paymentIntent.client_secret });
-    } catch (err) {
-      logFailure("stripe_create_failed", err);
+      if (category === "invalid_amount" || category === "invalid_request") {
+        return jsonResponse({ error: CLIENT_MESSAGE.invalidAmount }, 400);
+      }
       return jsonResponse({ error: CLIENT_MESSAGE.stripeFailed }, 400);
     }
+
+    // Response shape is deliberately unchanged for the deployed mobile build.
+    return jsonResponse({ clientSecret: result.session.clientSecret });
   } catch (error) {
     // Unexpected failures (e.g. missing server configuration such as
     // SUPABASE_SERVICE_ROLE_KEY / STRIPE_SECRET_KEY). Never leak internals.

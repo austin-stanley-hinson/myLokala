@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 
 import { calculateGiftCardTotal } from "@/lib/pricing/gift-card-fees";
+import { GiftCheckout } from "@/components/gift-certificates/gift-checkout";
 
 const AMOUNT_PRESETS = [25, 50, 100, 250] as const;
 
@@ -31,7 +31,8 @@ export default function GiftCertificatesPage() {
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [note, setNote] = useState("");
-  const [method, setMethod] = useState<PaymentMethodId>("card");
+  // Only card is offered today; the fee model already supports a future bank option.
+  const [method] = useState<PaymentMethodId>("card");
 
   // Card pricing only in UI today; helper also supports bank for a future selector.
   const { consumerFee: processingFee, total } = useMemo(
@@ -181,121 +182,18 @@ export default function GiftCertificatesPage() {
           </div>
         </section>
       ) : (
-        <section className="bg-lokala-cream-light px-4 py-12 sm:px-6">
-          <div className="mx-auto max-w-6xl">
-            <button
-              type="button"
-              onClick={() => setStep("details")}
-              className="mb-6 inline-flex items-center gap-2 rounded-full border border-lokala-border bg-white px-4 py-2 text-sm font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
-            >
-              ← Edit gift details
-            </button>
-
-            <div className="grid min-h-[560px] gap-6 md:grid-cols-2">
-              <section className="rounded-[2rem] border border-lokala-border bg-white p-6 shadow-lokala-card sm:p-8">
-                <h2 className="text-2xl font-extrabold text-lokala-brown-dark">
-                  Choose payment method
-                </h2>
-                <p className="mt-1 text-sm text-lokala-muted">
-                  Payment processing is not enabled yet — this is a visual
-                  preview.
-                </p>
-
-                <div className="mt-6 grid gap-4">
-                  {PAYMENT_METHODS.map((option) => {
-                    const active = option.id === method;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setMethod(option.id)}
-                        aria-pressed={active}
-                        className={`rounded-3xl p-5 text-left transition ${
-                          active
-                            ? "border-2 border-lokala-green bg-lokala-green-soft shadow-lokala-soft"
-                            : "border border-lokala-border bg-white hover:bg-lokala-sky"
-                        }`}
-                      >
-                        <p className="font-extrabold text-lokala-brown-dark">
-                          {option.title}
-                        </p>
-                        <p className="mt-1 text-sm text-lokala-muted">
-                          {option.body}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <aside className="rounded-[2rem] border border-lokala-border bg-white p-6 shadow-lokala-card sm:p-8">
-                <h2 className="text-2xl font-extrabold text-lokala-brown-dark">
-                  Purchase summary
-                </h2>
-
-                {recipientName || recipientEmail ? (
-                  <p className="mt-2 text-sm text-lokala-muted">
-                    For{" "}
-                    <span className="font-bold text-lokala-brown-dark">
-                      {recipientName || "your recipient"}
-                    </span>
-                    {recipientEmail ? ` · ${recipientEmail}` : ""}
-                  </p>
-                ) : null}
-
-                <p className="mt-3 text-sm text-lokala-muted">
-                  Delivered directly to your recipient&apos;s Lokala account.
-                  They must already have a Lokala account before funds can be
-                  delivered.
-                </p>
-
-                <div className="mt-6 space-y-4 text-lokala-text">
-                  <div className="flex justify-between">
-                    <span>Gift certificate</span>
-                    <span className="font-bold">{currency(amount)}</span>
-                  </div>
-                  <div className="flex justify-between text-lokala-muted">
-                    <span>Lokala processing fee</span>
-                    <span>{currency(processingFee)}</span>
-                  </div>
-                  <p className="text-xs leading-5 text-lokala-muted">
-                    This fee is added to your gift certificate purchase. Checkout
-                    is not live yet.
-                  </p>
-
-                  <div className="border-t border-lokala-border pt-4">
-                    <div className="flex items-end justify-between">
-                      <span className="text-lg font-extrabold text-lokala-brown-dark">
-                        Total
-                      </span>
-                      <span className="text-4xl font-extrabold text-lokala-green-dark">
-                        {currency(total)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  disabled
-                  className="mt-8 w-full cursor-not-allowed rounded-full bg-lokala-green px-6 py-4 font-extrabold text-white opacity-70 shadow-lokala-soft"
-                >
-                  Purchase Gift Certificate
-                </button>
-                <p className="mt-3 text-center text-xs text-lokala-muted">
-                  Checkout is coming soon.{" "}
-                  <Link
-                    href="/browse"
-                    className="font-bold text-lokala-green-dark underline-offset-4 hover:underline"
-                  >
-                    Browse deals
-                  </Link>{" "}
-                  in the meantime.
-                </p>
-              </aside>
-            </div>
-          </div>
-        </section>
+        <GiftCheckout
+          purchase={{
+            amount,
+            recipientName,
+            recipientEmail,
+            note,
+            paymentMethod: method,
+            processingFee,
+            total,
+          }}
+          onBack={() => setStep("details")}
+        />
       )}
     </div>
   );
