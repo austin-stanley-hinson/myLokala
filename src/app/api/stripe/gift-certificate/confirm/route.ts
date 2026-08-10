@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
+
+import { isGiftCertificatePaymentKind } from "@/lib/payments/gift-metadata";
 import { getStripe } from "@/lib/stripe/server";
 
 /**
- * Report the status of a gift-certificate purchase. READ-ONLY.
+ * DEPRECATED — read-only status probe for a gift-certificate PaymentIntent.
  *
- * This route used to issue Lokala credit by calling deliver_gift_certificate()
- * once it saw a succeeded PaymentIntent. It no longer moves money at all:
- * delivery is now owned exclusively by the signature-verified Stripe webhook at
- * /api/stripe/webhook, and the RPC's anon/authenticated grants have been
- * revoked, so credit cannot be issued from a browser-driven call even if one
- * were replayed.
+ * Credit is issued only by the signature-verified webhook at /api/stripe/webhook.
+ * Canonical client status is GET /api/payments/[paymentId]. This route remains
+ * so any leftover caller can still poll Stripe status without moving money.
  *
- * Kept only so the existing checkout can poll for a result while the webhook
- * lands. It is superseded by GET /api/payments/[paymentId], which returns the
- * canonical ledger status rather than reading Stripe directly.
+ * Accepts both historical metadata.kind values:
+ *   - gift_certificate_purchase (current createPayment metadata)
+ *   - gift_certificate (legacy)
  */
 export async function POST(req: Request) {
   try {
@@ -29,7 +28,7 @@ export async function POST(req: Request) {
     const stripe = getStripe();
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
-    if (paymentIntent.metadata?.kind !== "gift_certificate") {
+    if (!isGiftCertificatePaymentKind(paymentIntent.metadata?.kind)) {
       return NextResponse.json(
         { error: "Not a gift certificate payment." },
         { status: 400, headers: { "Cache-Control": "no-store" } },
@@ -43,7 +42,6 @@ export async function POST(req: Request) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
-    // Keep Stripe/Postgres detail on the server; the client gets generic copy.
     console.error("Gift Certificate Confirm Error:", error);
     return NextResponse.json(
       { error: "Could not read the payment status. Please try again." },

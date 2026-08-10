@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { BUSINESS_ACCOUNT_TYPE, isBusinessOwner } from "@/lib/auth/business-profile";
+import { connectedAccountUsableInMode } from "@/lib/stripe/connect-readiness";
+import { isStripePlatformLive } from "@/lib/stripe/server";
 
 export type BusinessProfile = {
   full_name: string | null;
@@ -16,6 +18,7 @@ export type PaymentAccount = {
   onboarding_status: string | null;
   charges_enabled: boolean | null;
   payouts_enabled: boolean | null;
+  livemode?: boolean | null;
 };
 
 export type BusinessContext = {
@@ -68,7 +71,7 @@ export async function getBusinessContext(): Promise<BusinessContext> {
 
   const { data: paymentAccount } = await supabase
     .from("business_payment_accounts")
-    .select("onboarding_status, charges_enabled, payouts_enabled")
+    .select("onboarding_status, charges_enabled, payouts_enabled, livemode")
     .eq("owner_id", user.id)
     .maybeSingle<PaymentAccount>();
 
@@ -90,9 +93,19 @@ export async function getBusinessContext(): Promise<BusinessContext> {
 
 /** Whether the merchant's Stripe account is fully connected (charges + payouts). */
 export function isPaymentsConnected(account: PaymentAccount | null): boolean {
-  return (
-    account?.onboarding_status === "complete" &&
-    Boolean(account.charges_enabled) &&
-    Boolean(account.payouts_enabled)
-  );
+  if (
+    account?.onboarding_status !== "complete" ||
+    !account.charges_enabled ||
+    !account.payouts_enabled
+  ) {
+    return false;
+  }
+  try {
+    return connectedAccountUsableInMode(
+      account.livemode ?? null,
+      isStripePlatformLive(),
+    );
+  } catch {
+    return false;
+  }
 }

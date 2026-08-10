@@ -1,7 +1,8 @@
 import type Stripe from "stripe";
 
 import { isPaymentsConnected } from "@/lib/auth/business-context";
-import { getStripe } from "@/lib/stripe/server";
+import { connectedAccountUsableInMode } from "@/lib/stripe/connect-readiness";
+import { getStripe, isStripePlatformLive } from "@/lib/stripe/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   type FeeBreakdown,
@@ -194,7 +195,7 @@ async function resolveMerchantTarget(
   const { data: account, error: accountError } = await admin
     .from("business_payment_accounts")
     .select(
-      "stripe_account_id, onboarding_status, charges_enabled, payouts_enabled",
+      "stripe_account_id, onboarding_status, charges_enabled, payouts_enabled, livemode",
     )
     .eq("owner_id", ownerId)
     .maybeSingle<{
@@ -202,12 +203,21 @@ async function resolveMerchantTarget(
       onboarding_status: string | null;
       charges_enabled: boolean | null;
       payouts_enabled: boolean | null;
+      livemode: boolean | null;
     }>();
+
+  let platformLive: boolean;
+  try {
+    platformLive = isStripePlatformLive();
+  } catch {
+    return { ok: false };
+  }
 
   if (
     accountError ||
     !account?.stripe_account_id ||
-    !isPaymentsConnected(account)
+    !isPaymentsConnected(account) ||
+    !connectedAccountUsableInMode(account.livemode, platformLive)
   ) {
     return { ok: false };
   }

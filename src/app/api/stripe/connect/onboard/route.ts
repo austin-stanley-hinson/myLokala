@@ -2,20 +2,24 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { isBusinessOwner } from "@/lib/auth/business-profile";
-import { getStripe } from "@/lib/stripe/server";
+import { connectedAccountUsableInMode } from "@/lib/stripe/connect-readiness";
+import { getStripe, isStripePlatformLive } from "@/lib/stripe/server";
 
 export const dynamic = "force-dynamic";
 
 type PaymentAccountRow = {
   stripe_account_id: string | null;
+  livemode: boolean | null;
+  previous_stripe_account_id: string | null;
 };
 
 /**
  * Start Stripe Connect hosted onboarding for the signed-in business owner.
  *
- * Server-only: uses the Supabase server client (session cookies) for auth and
- * the server Stripe helper (STRIPE_SECRET_KEY). Returns the hosted onboarding
- * URL as JSON so the caller can redirect the merchant to Stripe.
+ * Reuses a connected account only when it matches the current platform Stripe
+ * mode (test vs live). A stale TEST acct_... left over after switching to
+ * sk_live is preserved on previous_stripe_account_id and replaced with a new
+ * Express account created under the live key.
  */
 export async function POST(request: NextRequest) {
   if (
@@ -33,7 +37,6 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Only authenticated business owners may start onboarding.
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
@@ -46,12 +49,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const stripe = getStripe();
+    const platformLive = isStripePlatformLive();
 
-    // Look up any existing payment account row for this owner (RLS scopes the
-    // read to auth.uid() = owner_id).
     const { data: existing, error: lookupError } = await supabase
       .from("business_payment_accounts")
-      .select("stripe_account_id")
+      .select("stripe_account_id, livemode, previous_stripe_account_id")
       .eq("owner_id", user.id)
       .maybeSingle<PaymentAccountRow>();
 
@@ -59,10 +61,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: lookupError.message }, { status: 500 });
     }
 
-    // Reuse the connected account if one already exists; otherwise create a new
-    // Express account with only the capabilities needed to accept payments and
-    // receive payouts (no card issuing).
     let accountId = existing?.stripe_account_id ?? null;
+    let previousAccountId = existing?.previous_stripe_account_id ?? null;
+    let replacingWrongMode = false;
+
+    if (
+      accountId &&
+      !connectedAccountUsableInMode(existing?.livemode, platformLive)
+    ) {
+      // Wrong-mode (typically TEST after sk_live cutover): do not retrieve or
+      // reuse. Keep the old id for history and create a fresh Express account.
+      previousAccountId = accountId;
+      accountId = null;
+      replacingWrongMode = true;
+    }
+
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: "express",
@@ -73,28 +86,37 @@ export async function POST(request: NextRequest) {
         },
       });
       accountId = account.id;
+      replacingWrongMode = replacingWrongMode || Boolean(existing?.stripe_account_id);
     }
 
-    // Persist the account id and mark onboarding as pending. Upsert on owner_id
-    // handles both the first-time (insert) and re-onboarding (update) cases
-    // without clobbering the capability flags maintained elsewhere.
+    // Same-mode reuse: keep existing capability flags. Wrong-mode replacement
+    // or first create: reset readiness until Stripe confirms the new account.
+    const savePayload: Record<string, unknown> = {
+      owner_id: user.id,
+      stripe_account_id: accountId,
+      livemode: platformLive,
+      previous_stripe_account_id: previousAccountId,
+    };
+
+    if (replacingWrongMode || !existing?.stripe_account_id) {
+      savePayload.onboarding_status = "pending";
+      savePayload.charges_enabled = false;
+      savePayload.payouts_enabled = false;
+      savePayload.details_submitted = false;
+    } else {
+      // Re-onboarding the same-mode account: mark pending while they finish
+      // Account Link, without wiping last-known capability flags until refresh.
+      savePayload.onboarding_status = "pending";
+    }
+
     const { error: saveError } = await supabase
       .from("business_payment_accounts")
-      .upsert(
-        {
-          owner_id: user.id,
-          stripe_account_id: accountId,
-          onboarding_status: "pending",
-        },
-        { onConflict: "owner_id" },
-      );
+      .upsert(savePayload, { onConflict: "owner_id" });
 
     if (saveError) {
       return NextResponse.json({ error: saveError.message }, { status: 500 });
     }
 
-    // Build return/refresh URLs from the request origin so the same route works
-    // across local, preview, and production hosts.
     const origin = request.nextUrl.origin;
     const accountLink = await stripe.accountLinks.create({
       account: accountId,

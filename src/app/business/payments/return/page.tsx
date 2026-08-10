@@ -3,15 +3,14 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { isBusinessOwner } from "@/lib/auth/business-profile";
-import { getStripe } from "@/lib/stripe/server";
+import { readinessPatchFromStripeAccount } from "@/lib/stripe/connect-readiness";
+import { getStripe, isStripePlatformLive } from "@/lib/stripe/server";
 
 export const dynamic = "force-dynamic";
 
 type PaymentAccountRow = {
   stripe_account_id: string | null;
 };
-
-type OnboardingStatus = "not_started" | "pending" | "complete" | "restricted";
 
 /**
  * Return destination for Stripe Connect hosted onboarding.
@@ -51,10 +50,7 @@ export default async function PaymentsReturnPage() {
     redirect("/business/payments");
   }
 
-  let charges_enabled = false;
-  let payouts_enabled = false;
-  let details_submitted = false;
-  let onboarding_status: OnboardingStatus = "pending";
+  let onboarding_status = "pending";
   let errorMessage: string | null = null;
 
   try {
@@ -62,35 +58,20 @@ export default async function PaymentsReturnPage() {
     const stripeAccount = await stripe.accounts.retrieve(
       account.stripe_account_id,
     );
-
-    charges_enabled = Boolean(stripeAccount.charges_enabled);
-    payouts_enabled = Boolean(stripeAccount.payouts_enabled);
-    details_submitted = Boolean(stripeAccount.details_submitted);
-
-    const currentlyDue = stripeAccount.requirements?.currently_due ?? [];
-    const pastDue = stripeAccount.requirements?.past_due ?? [];
-
-    // Priority: complete, then restricted (outstanding requirements take
-    // precedence so merchants see that action is needed), then pending when
-    // details are submitted but the account is not fully enabled, else pending.
-    // `not_started` only applies with no account, handled above.
-    if (charges_enabled && payouts_enabled) {
-      onboarding_status = "complete";
-    } else if (currentlyDue.length > 0 || pastDue.length > 0) {
-      onboarding_status = "restricted";
-    } else if (details_submitted) {
-      onboarding_status = "pending";
-    } else {
-      onboarding_status = "pending";
-    }
+    const patch = readinessPatchFromStripeAccount(
+      stripeAccount,
+      isStripePlatformLive(),
+    );
+    onboarding_status = patch.onboarding_status;
 
     const { error: updateError } = await supabase
       .from("business_payment_accounts")
       .update({
-        charges_enabled,
-        payouts_enabled,
-        details_submitted,
-        onboarding_status,
+        charges_enabled: patch.charges_enabled,
+        payouts_enabled: patch.payouts_enabled,
+        details_submitted: patch.details_submitted,
+        onboarding_status: patch.onboarding_status,
+        livemode: patch.livemode,
       })
       .eq("owner_id", user.id);
 

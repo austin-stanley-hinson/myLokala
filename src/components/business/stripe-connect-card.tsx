@@ -20,16 +20,20 @@ export function StripeConnectCard({
   onboardingStatus,
   chargesEnabled,
   payoutsEnabled,
+  paymentsReady,
 }: {
   onboardingStatus: string | null;
   chargesEnabled: boolean;
   payoutsEnabled: boolean;
+  /** Server-computed: readiness flags AND connected account matches platform mode. */
+  paymentsReady?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const connected =
-    onboardingStatus === "complete" && chargesEnabled && payoutsEnabled;
+    paymentsReady ??
+    (onboardingStatus === "complete" && chargesEnabled && payoutsEnabled);
   const inProgress =
     onboardingStatus === "pending" || onboardingStatus === "restricted";
 
