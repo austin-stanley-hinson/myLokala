@@ -71,6 +71,7 @@ export default async function PaymentsReturnPage() {
         payouts_enabled: patch.payouts_enabled,
         details_submitted: patch.details_submitted,
         onboarding_status: patch.onboarding_status,
+        livemode: patch.livemode,
       })
       .eq("owner_id", user.id);
 

@@ -95,6 +95,7 @@ export async function POST(req: Request) {
       payouts_enabled: patch.payouts_enabled,
       details_submitted: patch.details_submitted,
       onboarding_status: patch.onboarding_status,
+      livemode: patch.livemode,
     })
     .eq("stripe_account_id", account.id);
 
@@ -106,6 +107,7 @@ export async function POST(req: Request) {
   console.info("[connect.webhook] account_synced", {
     eventType: event.type,
     onboardingStatus: patch.onboarding_status,
+    livemode: patch.livemode,
   });
 
   return ack("account readiness updated");
