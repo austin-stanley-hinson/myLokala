@@ -1,63 +1,28 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createTypedClient } from "@/lib/supabase/server";
-import { isActiveMerchantMember } from "@/lib/auth/merchant";
+import { resolveAuthCallback, safeNext } from "@/lib/auth/callback";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Only allow internal, root-relative redirect targets. Rejects protocol-relative
- * (`//host`), scheme URLs, and backslash tricks so this can never become an open
- * redirect. Defaults business auth to the dashboard.
- */
-function safeNext(next: string | null): string {
-  if (
-    !next ||
-    !next.startsWith("/") ||
-    next.startsWith("//") ||
-    next.includes("\\")
-  ) {
-    return "/business";
-  }
-  return next;
-}
-
-/**
- * Supabase email-confirmation / recovery callback. Exchanges the `code` for a
- * session, then routes by merchant membership (the authorization source):
- *   - active merchant member → the safe `next` path (default `/business`)
- *   - authenticated non-member → merchant onboarding
- *
- * Creating the merchant happens on the onboarding page (never here), so callback
- * retries can never create duplicate merchant accounts.
+ * Supabase email-confirmation / recovery / OAuth callback. Establishes the
+ * session from the `code` (PKCE) or `token_hash` (OTP) parameter, then routes by
+ * merchant membership. All decision logic lives in `resolveAuthCallback` so it
+ * is unit-tested without a live request. See `@/lib/auth/callback`.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
-  const code = searchParams.get("code");
-  const next = safeNext(searchParams.get("next"));
-
-  if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=missing_code`);
-  }
 
   const supabase = await createTypedClient();
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) {
-    return NextResponse.redirect(`${origin}/login?error=auth_callback`);
-  }
+  const target = await resolveAuthCallback(supabase, {
+    code: searchParams.get("code"),
+    tokenHash: searchParams.get("token_hash"),
+    type: searchParams.get("type"),
+    error: searchParams.get("error") ?? searchParams.get("error_code"),
+    next: safeNext(searchParams.get("next")),
+  });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.redirect(`${origin}/login?error=no_session`);
-  }
-
-  if (await isActiveMerchantMember(supabase, user.id)) {
-    return NextResponse.redirect(`${origin}${next}`);
-  }
-
-  // Authenticated but no merchant yet → self-serve onboarding.
-  return NextResponse.redirect(`${origin}/business/onboarding`);
+  return NextResponse.redirect(`${origin}${target}`);
 }
