@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/merchant";
 import { connectedAccountUsableInMode } from "@/lib/stripe/connect-readiness";
 import { isStripePlatformLive } from "@/lib/stripe/server";
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
 
 /**
  * Server-side guard + loader for the business dashboard routes.
@@ -23,10 +24,7 @@ import { isStripePlatformLive } from "@/lib/stripe/server";
  * Middleware only refreshes the session; this is the real authorization boundary.
  */
 export async function getBusinessContext(): Promise<MerchantContext> {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!hasPublicSupabaseEnv()) {
     redirect("/login");
   }
 

@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
-import { createTypedClient } from "@/lib/supabase/server";
-import { getActiveMembership } from "@/lib/auth/merchant";
 import { EMAIL_VERIFIED_PARAM, isEmailVerifiedParam } from "@/lib/auth/callback";
+import { getActiveMembership } from "@/lib/auth/merchant";
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
+import { createTypedClient } from "@/lib/supabase/server";
 import { OnboardingForm } from "./onboarding-form";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +23,7 @@ export default async function MerchantOnboardingPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!hasPublicSupabaseEnv()) {
     redirect("/login");
   }
 

@@ -15,6 +15,7 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import { Button } from "@/components/ui/button";
 import { isActiveMerchantMember } from "@/lib/auth/merchant";
 import { buildPageMetadata } from "@/lib/seo";
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
 import { createTypedClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -51,10 +52,7 @@ const HOW_IT_WORKS: HowItWorksStep[] = [
 ];
 
 export default async function HomePage() {
-  const envConfigured = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
+  const envConfigured = hasPublicSupabaseEnv();
 
   // Tailor the primary action to the visitor. Merchant access is determined
   // solely by an active `merchant_members` row (the authorization source of

@@ -3,8 +3,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { createTypedClient } from "@/lib/supabase/server";
 import { resolvePaymentHub } from "@/lib/merchant/setup";
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
+import { createTypedClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,7 @@ type PayPageProps = {
 };
 
 async function loadHub(publicCode: string) {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!hasPublicSupabaseEnv()) {
     return null;
   }
   const supabase = await createTypedClient();
