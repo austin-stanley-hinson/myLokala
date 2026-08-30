@@ -823,6 +823,10 @@ export type Database = {
         Returns: Json
       }
       generate_payment_hub_public_code: { Args: never; Returns: string }
+      get_merchant_connect_status: {
+        Args: { p_merchant_account_id: string }
+        Returns: Json
+      }
       is_merchant_member: {
         Args: { p_merchant_account_id: string; p_roles?: string[] }
         Returns: boolean
@@ -847,6 +851,71 @@ export type Database = {
           payment_hub_id: string
           public_code: string
         }[]
+      }
+      service_claim_stripe_webhook_event: {
+        Args: {
+          p_event_type: string
+          p_lease_seconds?: number
+          p_livemode: boolean
+          p_object_id: string
+          p_stripe_event_id: string
+        }
+        Returns: {
+          attempt_count: number
+          claim_status: string
+          event_id: string
+        }[]
+      }
+      service_complete_stripe_webhook_event: {
+        Args: {
+          p_error?: string
+          p_stripe_event_id: string
+          p_success: boolean
+        }
+        Returns: undefined
+      }
+      service_finalize_stripe_connected_account: {
+        Args: {
+          p_charges_enabled: boolean
+          p_details_submitted: boolean
+          p_disabled_reason: string
+          p_livemode: boolean
+          p_merchant_account_id: string
+          p_onboarding_status: string
+          p_payouts_enabled: boolean
+          p_requirements_currently_due: Json
+          p_requirements_eventually_due: Json
+          p_requirements_past_due: Json
+          p_stripe_account_id: string
+          p_transfers_enabled: boolean
+        }
+        Returns: Json
+      }
+      service_get_platform_stripe_livemode: { Args: never; Returns: boolean }
+      service_get_stripe_connected_account: {
+        Args: { p_livemode: boolean; p_merchant_account_id: string }
+        Returns: Json
+      }
+      service_reserve_stripe_connect_account: {
+        Args: { p_livemode: boolean; p_merchant_account_id: string }
+        Returns: Json
+      }
+      service_sync_stripe_connected_account: {
+        Args: {
+          p_charges_enabled: boolean
+          p_details_submitted: boolean
+          p_disabled_reason: string
+          p_last_stripe_event_at?: string
+          p_livemode: boolean
+          p_onboarding_status: string
+          p_payouts_enabled: boolean
+          p_requirements_currently_due: Json
+          p_requirements_eventually_due: Json
+          p_requirements_past_due: Json
+          p_stripe_account_id: string
+          p_transfers_enabled: boolean
+        }
+        Returns: Json
       }
       update_merchant_location: {
         Args: {

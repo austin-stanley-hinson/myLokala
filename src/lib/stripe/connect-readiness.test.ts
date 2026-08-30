@@ -7,68 +7,188 @@ import { describe, it } from "node:test";
 import {
   connectedAccountUsableInMode,
   deriveConnectOnboardingStatus,
+  isConnectReadyForSettlement,
   readinessPatchFromStripeAccount,
+  transfersCapabilityActive,
+  type ConnectReadinessPatch,
 } from "./connect-readiness.ts";
 
+const completeInput = {
+  details_submitted: true,
+  payouts_enabled: true,
+  transfers_enabled: true,
+  currently_due: [] as string[],
+  past_due: [] as string[],
+  eventually_due: [] as string[],
+  disabled_reason: null as string | null,
+};
+
+function completePatch(
+  overrides: Partial<ConnectReadinessPatch> = {},
+): ConnectReadinessPatch {
+  return {
+    charges_enabled: false,
+    payouts_enabled: true,
+    transfers_enabled: true,
+    details_submitted: true,
+    onboarding_status: "complete",
+    livemode: false,
+    disabled_reason: null,
+    requirements_currently_due: [],
+    requirements_past_due: [],
+    requirements_eventually_due: [],
+    ...overrides,
+  };
+}
+
 describe("deriveConnectOnboardingStatus", () => {
-  it("is complete when charges and payouts are enabled", () => {
-    assert.equal(
-      deriveConnectOnboardingStatus({
-        charges_enabled: true,
-        payouts_enabled: true,
-        details_submitted: true,
-        currently_due: ["external_account"],
-        past_due: [],
-      }),
-      "complete",
-    );
+  it("is complete when payouts and transfers are enabled without dues", () => {
+    assert.equal(deriveConnectOnboardingStatus(completeInput), "complete");
   });
 
-  it("is restricted when requirements are outstanding and not fully enabled", () => {
+  it("is complete even when charges_enabled would have been false", () => {
     assert.equal(
       deriveConnectOnboardingStatus({
-        charges_enabled: true,
-        payouts_enabled: false,
-        details_submitted: true,
-        currently_due: ["external_account"],
-        past_due: [],
+        ...completeInput,
       }),
-      "restricted",
+      "complete",
     );
   });
 
   it("is pending when details are in flight without open requirements", () => {
     assert.equal(
       deriveConnectOnboardingStatus({
-        charges_enabled: false,
-        payouts_enabled: false,
+        ...completeInput,
         details_submitted: true,
-        currently_due: [],
-        past_due: [],
+        payouts_enabled: false,
+        transfers_enabled: false,
       }),
       "pending",
     );
   });
+
+  it("is pending when transfers are not yet active", () => {
+    assert.equal(
+      deriveConnectOnboardingStatus({
+        ...completeInput,
+        transfers_enabled: false,
+      }),
+      "pending",
+    );
+  });
+
+  it("is restricted when currently_due is outstanding", () => {
+    assert.equal(
+      deriveConnectOnboardingStatus({
+        ...completeInput,
+        currently_due: ["external_account"],
+      }),
+      "restricted",
+    );
+  });
+
+  it("is restricted when past_due is outstanding even if payouts look enabled", () => {
+    assert.equal(
+      deriveConnectOnboardingStatus({
+        ...completeInput,
+        past_due: ["individual.verification.document"],
+      }),
+      "restricted",
+    );
+  });
+
+  it("is disabled when Stripe sets disabled_reason", () => {
+    assert.equal(
+      deriveConnectOnboardingStatus({
+        ...completeInput,
+        disabled_reason: "requirements.past_due",
+        currently_due: ["external_account"],
+      }),
+      "disabled",
+    );
+  });
+
+  it("does not treat eventually_due as restricted", () => {
+    assert.equal(
+      deriveConnectOnboardingStatus({
+        ...completeInput,
+        eventually_due: ["individual.verification.document"],
+      }),
+      "complete",
+    );
+  });
+});
+
+describe("transfersCapabilityActive", () => {
+  it("is true only for the active transfers capability", () => {
+    assert.equal(transfersCapabilityActive({ transfers: "active" }), true);
+    assert.equal(transfersCapabilityActive({ transfers: "pending" }), false);
+    assert.equal(transfersCapabilityActive({ transfers: "inactive" }), false);
+    assert.equal(transfersCapabilityActive(null), false);
+    assert.equal(transfersCapabilityActive({}), false);
+  });
 });
 
 describe("readinessPatchFromStripeAccount", () => {
-  it("maps Stripe Account fields including livemode", () => {
+  it("maps Stripe Account fields without requiring charges_enabled", () => {
+    const patch = readinessPatchFromStripeAccount(
+      {
+        charges_enabled: false,
+        payouts_enabled: true,
+        details_submitted: true,
+        capabilities: { transfers: "active" },
+        requirements: {
+          currently_due: [],
+          past_due: [],
+          eventually_due: ["individual.verification.document"],
+          disabled_reason: null,
+        },
+      },
+      false,
+    );
+
+    assert.equal(patch.onboarding_status, "complete");
+    assert.equal(patch.charges_enabled, false);
+    assert.equal(patch.transfers_enabled, true);
+    assert.equal(patch.payouts_enabled, true);
+    assert.deepEqual(patch.requirements_eventually_due, [
+      "individual.verification.document",
+    ]);
+    assert.equal(patch.livemode, false);
+  });
+
+  it("maps a restricted account from currently_due", () => {
     const patch = readinessPatchFromStripeAccount(
       {
         charges_enabled: true,
-        payouts_enabled: true,
+        payouts_enabled: false,
         details_submitted: true,
-        requirements: { currently_due: [], past_due: [] },
+        capabilities: { transfers: "pending" },
+        requirements: { currently_due: ["external_account"], past_due: [] },
       },
       true,
     );
-    assert.deepEqual(patch, {
-      charges_enabled: true,
-      payouts_enabled: true,
-      details_submitted: true,
-      onboarding_status: "complete",
-      livemode: true,
-    });
+    assert.equal(patch.onboarding_status, "restricted");
+    assert.equal(patch.livemode, true);
+    assert.equal(patch.transfers_enabled, false);
+  });
+
+  it("maps disabled_reason to disabled", () => {
+    const patch = readinessPatchFromStripeAccount(
+      {
+        payouts_enabled: false,
+        details_submitted: true,
+        capabilities: { transfers: "inactive" },
+        requirements: {
+          currently_due: [],
+          past_due: [],
+          disabled_reason: "listed",
+        },
+      },
+      false,
+    );
+    assert.equal(patch.onboarding_status, "disabled");
+    assert.equal(patch.disabled_reason, "listed");
   });
 });
 
@@ -89,9 +209,76 @@ describe("connectedAccountUsableInMode", () => {
     assert.equal(connectedAccountUsableInMode(false, false), true);
   });
 
-  it("treats legacy null livemode as test-era only", () => {
-    assert.equal(connectedAccountUsableInMode(null, false), true);
-    assert.equal(connectedAccountUsableInMode(null, true), false);
-    assert.equal(connectedAccountUsableInMode(undefined, true), false);
+  it("rejects missing livemode rather than guessing test-era rows", () => {
+    assert.equal(connectedAccountUsableInMode(null, false), false);
+    assert.equal(connectedAccountUsableInMode(undefined, false), false);
+  });
+});
+
+describe("isConnectReadyForSettlement", () => {
+  it("is ready for a matching-mode complete transfers account", () => {
+    assert.equal(isConnectReadyForSettlement(completePatch(), false), true);
+  });
+
+  it("is ready even when charges_enabled is false", () => {
+    assert.equal(
+      isConnectReadyForSettlement(completePatch({ charges_enabled: false }), false),
+      true,
+    );
+  });
+
+  it("rejects a mode mismatch", () => {
+    assert.equal(
+      isConnectReadyForSettlement(completePatch({ livemode: true }), false),
+      false,
+    );
+  });
+
+  it("rejects missing transfers", () => {
+    assert.equal(
+      isConnectReadyForSettlement(
+        completePatch({
+          transfers_enabled: false,
+          onboarding_status: "pending",
+        }),
+        false,
+      ),
+      false,
+    );
+  });
+
+  it("rejects currently_due even if status were complete", () => {
+    assert.equal(
+      isConnectReadyForSettlement(
+        completePatch({ requirements_currently_due: ["external_account"] }),
+        false,
+      ),
+      false,
+    );
+  });
+
+  it("does not reject eventually_due", () => {
+    assert.equal(
+      isConnectReadyForSettlement(
+        completePatch({
+          requirements_eventually_due: ["individual.verification.document"],
+        }),
+        false,
+      ),
+      true,
+    );
+  });
+
+  it("rejects disabled_reason", () => {
+    assert.equal(
+      isConnectReadyForSettlement(
+        completePatch({
+          disabled_reason: "listed",
+          onboarding_status: "disabled",
+        }),
+        false,
+      ),
+      false,
+    );
   });
 });

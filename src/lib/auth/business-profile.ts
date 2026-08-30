@@ -1,21 +1,12 @@
 /**
- * LEGACY metadata shim — DO NOT use for new authorization.
+ * LEGACY metadata shim — DO NOT use for authorization.
  *
- * Merchant authorization now comes exclusively from an active `merchant_members`
- * row; see `@/lib/auth/merchant` and `@/lib/auth/business-context`. The old
- * `profiles.account_type` / business-profile-field model has been removed, and
- * business sign-up no longer writes authorization claims into user metadata.
+ * Merchant authorization comes exclusively from an active `merchant_members`
+ * row. Stripe Connect onboarding uses `canManageMerchant` / membership checks
+ * and must never import this file.
  *
- * `isBusinessOwner` is retained ONLY because two not-yet-migrated Stripe Connect
- * routes still import it:
- *   - `src/app/business/payments/return/page.tsx`
- *   - `src/app/api/stripe/connect/onboard/route.ts`
- *
- * Those routes are part of the deferred Stripe rebuild (out of scope here). This
- * shim reads legacy metadata only; for accounts created under the new flow it
- * returns `false`, which is safe because that Stripe layer is already inert
- * against the new schema. Delete this file once those routes move to
- * membership-based checks.
+ * Retained only so any leftover deferred payment code that still compiled
+ * against metadata can fail closed (returns false for new accounts).
  */
 type MetadataUser = {
   user_metadata?: Record<string, unknown> | null;
@@ -25,8 +16,7 @@ const LEGACY_BUSINESS_ACCOUNT_TYPE = "business_owner";
 const LEGACY_BUSINESS_ROLE = "restaurant_owner";
 
 /**
- * @deprecated Legacy metadata check kept only for pending Stripe-rebuild routes.
- * Not the authorization source — use `isActiveMerchantMember` instead.
+ * @deprecated Not the authorization source. Do not use in Connect routes.
  */
 export function isBusinessOwner(user: MetadataUser): boolean {
   if (!user) return false;

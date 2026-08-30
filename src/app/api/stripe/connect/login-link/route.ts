@@ -1,25 +1,22 @@
-import { NextRequest } from "next/server";
-
 import {
   authorizeConnectMutation,
   CONNECT_CLIENT_ERRORS,
   connectJson,
-  startConnectOnboarding,
+  createExpressLoginLink,
 } from "@/lib/stripe/connect-onboarding";
 import { getStripe, isStripePlatformLive } from "@/lib/stripe/server";
-import { getActiveMembership, getMerchantAccount } from "@/lib/auth/merchant";
+import { getActiveMembership } from "@/lib/auth/merchant";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createTypedClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/stripe/connect/onboard
+ * POST /api/stripe/connect/login-link
  *
- * Starts or continues Express hosted onboarding for the signed-in owner/admin.
- * Returns only an Account Link URL. Never returns a Stripe account id.
+ * Owner/admin Express Dashboard login link. Returns a URL only.
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -40,14 +37,6 @@ export async function POST(request: NextRequest) {
     return connectJson({ error: authz.error }, authz.status);
   }
 
-  const merchant = await getMerchantAccount(
-    supabase,
-    membership!.merchantAccountId,
-  );
-  if (!merchant) {
-    return connectJson({ error: CONNECT_CLIENT_ERRORS.forbidden }, 403);
-  }
-
   let platformLive: boolean;
   try {
     platformLive = isStripePlatformLive();
@@ -62,18 +51,11 @@ export async function POST(request: NextRequest) {
     return connectJson({ error: CONNECT_CLIENT_ERRORS.notConfigured }, 500);
   }
 
-  const result = await startConnectOnboarding({
+  const result = await createExpressLoginLink({
     stripe,
     admin: createAdminClient(),
-    merchant: {
-      id: merchant.id,
-      display_name: merchant.display_name,
-      support_email: merchant.support_email,
-      website_url: merchant.website_url,
-    },
-    userEmail: user?.email ?? null,
+    merchantAccountId: membership!.merchantAccountId,
     platformLive,
-    origin: request.nextUrl.origin,
   });
 
   if (!result.ok) {

@@ -27,6 +27,7 @@ Local-only schema for Lokala’s rebuild. This document describes the schema on 
 - `public.merchant_locations`
 - `public.payment_hubs` — permanent hubs; QR uses `public_code` only
 - `app_private.stripe_connected_accounts` — Connect readiness; unique per `(merchant, livemode)`
+- `app_private.stripe_connect_account_reservations` — durable `accounts.create` idempotency keys; never exposed to clients
 
 ### Money in
 - `app_private.platform_config` — MVP limits + `colin_v1` + 250 bps merchant fee
@@ -132,8 +133,16 @@ Membership insert/role escalation is not granted to clients.
 `app_private.merchant_connect_is_ready(merchant_id, platform_stripe_livemode)` requires:
 
 - matching `livemode`
+- `details_submitted`
+- `payouts_enabled`
+- `transfers_enabled`
 - `onboarding_status = complete`
-- `charges_enabled`, `payouts_enabled`, `details_submitted`
+- `disabled_reason` is null
+- `requirements_currently_due` and `requirements_past_due` empty
+
+`charges_enabled` is diagnostic only. `requirements_eventually_due` does not block.
+
+Authenticated members read safe status via `public.get_merchant_connect_status` (no Stripe account id). Account creation uses a durable `app_private.stripe_connect_account_reservations` row and a stored Stripe idempotency key.
 
 ```bash
 # When Docker + Supabase CLI are available (not linked to remote):

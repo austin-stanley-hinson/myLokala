@@ -188,9 +188,9 @@ where id = pg_temp.uid('hub_disabled');
 
 insert into app_private.stripe_connected_accounts (
   merchant_account_id, stripe_account_id, livemode, onboarding_status,
-  charges_enabled, payouts_enabled, details_submitted
+  charges_enabled, payouts_enabled, transfers_enabled, details_submitted
 ) values (
-  pg_temp.uid('merchant_a'), 'acct_test_a', false, 'complete', true, true, true
+  pg_temp.uid('merchant_a'), 'acct_test_a', false, 'complete', true, true, true, true
 );
 
 -- 2. Users cannot read another wallet

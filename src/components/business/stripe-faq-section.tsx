@@ -9,43 +9,39 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Why do I need to connect Stripe?",
     answer:
-      "Connecting Stripe lets your business receive payments through Lokala. Paid features like gift certificates will require a connected Stripe account before they can go live.",
+      "Lokala settles redeemed gift balance to your restaurant through Stripe. Customers buy Lokala balance on the platform and spend it at your QR code. Connecting Stripe lets us pay you — it is not for taking cards at the counter.",
   },
   {
     question: "Is Lokala collecting my bank details?",
     answer:
-      "No. Stripe collects sensitive payout and verification information through its own secure onboarding flow. Lokala only stores your Stripe connection status, such as whether your account is ready to accept payments and receive payouts.",
+      "No. Stripe collects payout and verification information through its own hosted onboarding. Lokala only stores whether your connected account is ready to receive settlements.",
   },
   {
     question: "Why does Stripe ask for business or identity details?",
     answer:
-      "Payment providers need to verify businesses before enabling payments and payouts. Stripe may ask for business details, representative information, bank information, or documents depending on what is required for your account.",
+      "Payout providers need to verify businesses before sending money to a bank account. Stripe may ask for business details, representative information, or bank information depending on what is required for your account.",
   },
   {
     question: "Will I leave Lokala during setup?",
     answer:
-      "Yes, briefly. You'll be sent to Stripe's hosted onboarding page, then returned to Lokala when setup is complete.",
+      "Yes, briefly. You'll be sent to Stripe's hosted onboarding page, then returned to Lokala. Coming back does not always mean setup is finished — this page shows the real payout status.",
   },
   {
     question: "What happens after I connect Stripe?",
     answer:
-      "Your Payments page will update your setup status. If Stripe needs more information, you may see a pending or action-needed state. Once your account is fully enabled, Lokala can support paid business features.",
+      "Once payouts are ready, Lokala can settle amounts from customer QR redemptions to your connected account. If Stripe needs more information, you'll see an action-needed state here.",
   },
   {
     question: "Can I skip this for now?",
     answer:
-      "Yes. You can still access your dashboard and update your business profile, but paid features may require Stripe before they can go live.",
+      "Yes. You can still manage your profile, locations, and payment QR codes. Customers will not be able to redeem Lokala balance for settlement until payouts are ready.",
   },
 ];
 
 /**
- * Reassuring FAQ shown on the business Payments page explaining why Lokala uses
- * Stripe. Rendered as a single-open accordion (first item open) to keep the
- * screen calm. Copy/UI only — no Stripe logic.
+ * FAQ on the business Payments page. Copy/UI only — no Stripe logic.
  */
 export function StripeFaqSection() {
-  // Track the open item; the first is expanded by default. Clicking the open
-  // item collapses it, so at most one panel is open at a time.
   const [openIndex, setOpenIndex] = useState(0);
 
   return (
@@ -65,10 +61,9 @@ export function StripeFaqSection() {
             Why Lokala uses Stripe
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-lokala-muted">
-            Lokala uses Stripe so your business can securely set up payments and
-            payouts without sharing sensitive banking details directly with us.
-            Stripe helps verify businesses, collect required payout information,
-            and support secure payment processing.
+            Lokala uses Stripe Connect so we can settle redeemed gift balance to
+            your restaurant without collecting bank details ourselves. Customers
+            do not swipe a card at your QR code.
           </p>
         </div>
       </div>

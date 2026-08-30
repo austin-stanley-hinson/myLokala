@@ -39,7 +39,7 @@ export default async function BusinessOverviewPage() {
       href: "/business/payments",
       label: "Payments",
       description: "Connect payouts so customers can redeem Lokala balance.",
-      hint: "Coming next",
+      hint: "Payouts",
       icon: CreditCard,
     },
   ];

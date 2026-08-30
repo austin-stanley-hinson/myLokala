@@ -86,8 +86,8 @@ export default async function BusinessProfilePage() {
           Next steps
         </h2>
         <p className="mt-2 text-sm leading-6 text-lokala-muted">
-          Add a location to get a permanent Lokala payment QR code. Connecting
-          payments for customer redemptions will return in a later phase.
+          Add a location to get a permanent Lokala payment QR code. Connect
+          payouts so Lokala can settle redeemed gift balance.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
@@ -100,7 +100,7 @@ export default async function BusinessProfilePage() {
             href="/business/payments"
             className="inline-flex rounded-full border border-lokala-border bg-white px-5 py-2.5 text-sm font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
           >
-            Payments (coming next)
+            Payments
           </Link>
         </div>
       </section>
