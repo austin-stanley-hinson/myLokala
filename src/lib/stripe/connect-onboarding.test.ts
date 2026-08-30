@@ -8,10 +8,12 @@ import {
   authorizeConnectMutation,
   buildExpressAccountCreateParams,
   CONNECT_CLIENT_ERRORS,
+  connectJson,
   createExpressLoginLink,
   isTransfersOnlyRejected,
   parseReservation,
   payloadHasForbiddenFields,
+  sanitizeConnectError,
   startConnectOnboarding,
   syncConnectedAccountFromStripe,
   type ConnectAdminRpc,
@@ -51,8 +53,10 @@ function mockStripe(options?: {
 }): {
   stripe: ConnectOnboardingStripe;
   creates: { params: unknown; options: unknown }[];
+  loginLinks: string[];
 } {
   const creates: { params: unknown; options: unknown }[] = [];
+  const loginLinks: string[] = [];
   const stripe: ConnectOnboardingStripe = {
     accounts: {
       create: async (params, requestOptions) => {
@@ -83,6 +87,7 @@ function mockStripe(options?: {
         };
       },
       createLoginLink: async (id) => {
+        loginLinks.push(id);
         if (options?.createLoginLink) return options.createLoginLink(id);
         return { url: "https://connect.stripe.com/express/login/mock" };
       },
@@ -94,7 +99,7 @@ function mockStripe(options?: {
       },
     },
   };
-  return { stripe, creates };
+  return { stripe, creates, loginLinks };
 }
 
 const merchant = {
@@ -233,6 +238,114 @@ describe("startConnectOnboarding", () => {
     assert.equal(creates.length, 0);
   });
 
+  it("does not call Stripe when the platform livemode RPC fails", async () => {
+    const admin: ConnectAdminRpc = {
+      async rpc() {
+        return {
+          data: null,
+          error: { message: "Invalid API key", code: "PGRST301" },
+          status: 401,
+        };
+      },
+    };
+    const { stripe, creates } = mockStripe();
+    const logs: unknown[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      logs.push(args);
+    };
+    try {
+      const result = await startConnectOnboarding({
+        stripe,
+        admin,
+        merchant,
+        userEmail: null,
+        platformLive: false,
+        origin: "http://127.0.0.1:3000",
+      });
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.status, 500);
+        assert.equal(result.error, CONNECT_CLIENT_ERRORS.generic);
+        assert.notEqual(result.error, CONNECT_CLIENT_ERRORS.notConfigured);
+      }
+      assert.equal(creates.length, 0);
+      const logged = logs.find(
+        (entry) =>
+          Array.isArray(entry) &&
+          String(entry[0]).includes("platform_livemode_failed"),
+      );
+      assert.equal(Array.isArray(logged), true);
+      const detail = Array.isArray(logged) ? logged[1] : null;
+      const row = detail as Record<string, unknown>;
+      assert.equal(row.code, "PGRST301");
+      assert.equal(row.status, 401);
+      assert.equal(row.message, "Invalid API key");
+    } finally {
+      console.error = originalError;
+    }
+  });
+
+  it("logs Stripe create failures with safe fields and does not retry Stripe", async () => {
+    const { admin } = jsonRpc({
+      service_get_platform_stripe_livemode: () => false,
+      service_reserve_stripe_connect_account: () => ({
+        outcome: "needs_create",
+        idempotency_key: "lokala_connect_stored",
+        stripe_account_id: null,
+      }),
+    });
+    const stripeError = Object.assign(new Error("Connect is not enabled for this account."), {
+      name: "StripeInvalidRequestError",
+      type: "StripeInvalidRequestError",
+      rawType: "invalid_request_error",
+      code: "account_invalid",
+      statusCode: 400,
+      requestId: "req_mock",
+    });
+    const { stripe, creates } = mockStripe({
+      create: async () => {
+        throw stripeError;
+      },
+    });
+    const logs: unknown[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      logs.push(args);
+    };
+    try {
+      const result = await startConnectOnboarding({
+        stripe,
+        admin,
+        merchant,
+        userEmail: null,
+        platformLive: false,
+        origin: "http://127.0.0.1:3000",
+      });
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.status, 500);
+        assert.equal(result.error, CONNECT_CLIENT_ERRORS.generic);
+      }
+      assert.equal(creates.length, 1);
+      const createFailed = logs.find(
+        (entry) =>
+          Array.isArray(entry) &&
+          String(entry[0]).includes("stripe_create_failed"),
+      );
+      assert.equal(Array.isArray(createFailed), true);
+      const detail = Array.isArray(createFailed) ? createFailed[1] : null;
+      assert.equal(typeof detail, "object");
+      const row = detail as Record<string, unknown>;
+      assert.equal(row.code, "account_invalid");
+      assert.equal(row.statusCode, 400);
+      assert.equal(row.message, "Connect is not enabled for this account.");
+      assert.equal(JSON.stringify(logs).includes("acct_"), false);
+    } finally {
+      console.error = originalError;
+    }
+  });
+
   it("rejects a platform livemode mismatch", async () => {
     const { admin } = jsonRpc({
       service_get_platform_stripe_livemode: () => true,
@@ -312,13 +425,20 @@ describe("syncConnectedAccountFromStripe", () => {
 });
 
 describe("createExpressLoginLink", () => {
-  it("returns only a URL for an existing current-mode account", async () => {
+  it("returns only a URL for an eligible Express account", async () => {
     const { admin } = jsonRpc({
       service_get_stripe_connected_account: () => ({
         stripe_account_id: "acct_existing",
       }),
     });
-    const { stripe } = mockStripe();
+    const { stripe, loginLinks } = mockStripe({
+      retrieve: async (id) => ({
+        id,
+        details_submitted: true,
+        payouts_enabled: true,
+        capabilities: { transfers: "active" },
+      }),
+    });
     const result = await createExpressLoginLink({
       stripe,
       admin,
@@ -332,6 +452,63 @@ describe("createExpressLoginLink", () => {
         "https://connect.stripe.com/express/login/mock",
       );
       assert.equal(payloadHasForbiddenFields(result.value), false);
+    }
+    assert.equal(loginLinks.length, 1);
+  });
+
+  it("returns 409 ONBOARDING_INCOMPLETE without calling createLoginLink", async () => {
+    const { admin } = jsonRpc({
+      service_get_stripe_connected_account: () => ({
+        stripe_account_id: "acct_existing",
+      }),
+    });
+    const { stripe, loginLinks } = mockStripe({
+      retrieve: async (id) => ({
+        id,
+        details_submitted: false,
+        payouts_enabled: false,
+        capabilities: { transfers: "inactive" },
+      }),
+    });
+    const result = await createExpressLoginLink({
+      stripe,
+      admin,
+      merchantAccountId: merchant.id,
+      platformLive: false,
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.status, 409);
+      assert.equal(result.code, "ONBOARDING_INCOMPLETE");
+      assert.equal(result.error, CONNECT_CLIENT_ERRORS.onboardingIncomplete);
+    }
+    assert.equal(loginLinks.length, 0);
+  });
+
+  it("maps Stripe's incomplete-onboarding login error to 409", async () => {
+    const { admin } = jsonRpc({
+      service_get_stripe_connected_account: () => ({
+        stripe_account_id: "acct_existing",
+      }),
+    });
+    const { stripe } = mockStripe({
+      retrieve: async (id) => ({ id, details_submitted: true }),
+      createLoginLink: async () => {
+        throw new Error(
+          "Cannot create a login link for an account that has not completed onboarding.",
+        );
+      },
+    });
+    const result = await createExpressLoginLink({
+      stripe,
+      admin,
+      merchantAccountId: merchant.id,
+      platformLive: false,
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.status, 409);
+      assert.equal(result.code, "ONBOARDING_INCOMPLETE");
     }
   });
 
@@ -358,5 +535,97 @@ describe("isTransfersOnlyRejected", () => {
       true,
     );
     assert.equal(isTransfersOnlyRejected(new Error("rate limit")), false);
+  });
+});
+
+describe("sanitizeConnectError", () => {
+  it("keeps PostgREST code and a safe message", () => {
+    assert.deepEqual(
+      sanitizeConnectError({ message: "Invalid API key", code: "PGRST301" }),
+      { type: "object", code: "PGRST301", message: "Invalid API key" },
+    );
+  });
+
+  it("keeps PostgREST details and HTTP status when present", () => {
+    assert.deepEqual(
+      sanitizeConnectError({
+        message: "Could not find the function",
+        code: "PGRST202",
+        details: "Searched for the function public.service_get_platform_stripe_livemode without parameters",
+        hint: "Perhaps you meant the function that does exist",
+        status: 404,
+      }),
+      {
+        type: "object",
+        code: "PGRST202",
+        status: 404,
+        message: "Could not find the function",
+        details:
+          "Searched for the function public.service_get_platform_stripe_livemode without parameters",
+        hint: "Perhaps you meant the function that does exist",
+      },
+    );
+  });
+
+  it("keeps Stripe statusCode and a safe message", () => {
+    const detail = sanitizeConnectError({
+      name: "StripeInvalidRequestError",
+      message: "Connect is not enabled for this account.",
+      code: "account_invalid",
+      statusCode: 400,
+      requestId: "req_mock",
+      type: "StripeInvalidRequestError",
+    });
+    assert.equal(detail.code, "account_invalid");
+    assert.equal(detail.statusCode, 400);
+    assert.equal(detail.requestId, "req_mock");
+    assert.equal(detail.message, "Connect is not enabled for this account.");
+  });
+
+  it("omits secret-like message text", () => {
+    const detail = sanitizeConnectError({
+      message: "key sk_test_example is invalid",
+      code: "invalid_api_key",
+    });
+    assert.equal(detail.code, "invalid_api_key");
+    assert.equal("message" in detail, false);
+  });
+});
+
+describe("payloadHasForbiddenFields", () => {
+  it("allows an Account Link URL that includes acct_ in the path", () => {
+    assert.equal(
+      payloadHasForbiddenFields({
+        url: "https://connect.stripe.com/setup/c/acct_1Example/token",
+      }),
+      false,
+    );
+  });
+
+  it("rejects a separate stripe_account_id field", () => {
+    assert.equal(
+      payloadHasForbiddenFields({
+        url: "https://connect.stripe.com/setup/s/mock",
+        stripe_account_id: "acct_1Example",
+      }),
+      true,
+    );
+  });
+});
+
+describe("connectJson", () => {
+  it("returns the incomplete-onboarding body at 409", async () => {
+    const response = connectJson(
+      {
+        error: CONNECT_CLIENT_ERRORS.onboardingIncomplete,
+        code: "ONBOARDING_INCOMPLETE",
+      },
+      409,
+    );
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), {
+      error: CONNECT_CLIENT_ERRORS.onboardingIncomplete,
+      code: "ONBOARDING_INCOMPLETE",
+    });
   });
 });

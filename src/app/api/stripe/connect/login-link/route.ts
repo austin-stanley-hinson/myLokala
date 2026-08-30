@@ -7,6 +7,7 @@ import {
 import { getStripe, isStripePlatformLive } from "@/lib/stripe/server";
 import { getActiveMembership } from "@/lib/auth/merchant";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
 import { createTypedClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +18,7 @@ export const dynamic = "force-dynamic";
  * Owner/admin Express Dashboard login link. Returns a URL only.
  */
 export async function POST() {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!hasPublicSupabaseEnv()) {
     return connectJson({ error: CONNECT_CLIENT_ERRORS.notConfigured }, 500);
   }
 
@@ -59,7 +57,12 @@ export async function POST() {
   });
 
   if (!result.ok) {
-    return connectJson({ error: result.error }, result.status);
+    return connectJson(
+      result.code
+        ? { error: result.error, code: result.code }
+        : { error: result.error },
+      result.status,
+    );
   }
 
   return connectJson({ url: result.value.url });

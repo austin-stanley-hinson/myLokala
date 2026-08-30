@@ -40,11 +40,31 @@ function asStringArray(value: readonly string[] | string[] | null | undefined): 
   return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 }
 
+/**
+ * Stripe sets `requirements.past_due` / `requirements.pending_verification` on
+ * incomplete accounts. Those are collection states, not a platform ban.
+ */
+export function isRequirementsCollectionReason(
+  reason: string | null | undefined,
+): boolean {
+  return typeof reason === "string" && reason.startsWith("requirements.");
+}
+
+/** Listed, rejected.*, other — actually disabled by Stripe. */
+export function isActionableDisabledReason(
+  reason: string | null | undefined,
+): boolean {
+  if (!reason) return false;
+  if (isRequirementsCollectionReason(reason)) return false;
+  if (reason === "under_review") return false;
+  return true;
+}
+
 /** Cached onboarding_status from a Stripe Account snapshot. */
 export function deriveConnectOnboardingStatus(
   input: ConnectReadinessInput,
 ): ConnectOnboardingStatus {
-  if (input.disabled_reason) {
+  if (isActionableDisabledReason(input.disabled_reason)) {
     return "disabled";
   }
   if (input.currently_due.length > 0 || input.past_due.length > 0) {

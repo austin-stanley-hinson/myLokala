@@ -3,67 +3,11 @@
 import { useState } from "react";
 import { Banknote, CheckCircle2, Loader2 } from "lucide-react";
 
-import type { MerchantConnectStatus } from "@/lib/stripe/connect-status";
-
-type StatusPill = {
-  label: string;
-  className: string;
-};
-
-function pillFor(status: MerchantConnectStatus): StatusPill {
-  if (status.readyForSettlement) {
-    return {
-      label: "Payout ready",
-      className: "bg-lokala-green-light text-lokala-green-dark",
-    };
-  }
-  if (status.onboardingStatus === "disabled") {
-    return {
-      label: "Disabled",
-      className: "bg-lokala-danger/10 text-lokala-danger",
-    };
-  }
-  if (status.onboardingStatus === "restricted") {
-    return {
-      label: "Action needed",
-      className: "bg-lokala-danger/10 text-lokala-danger",
-    };
-  }
-  if (status.onboardingStatus === "pending") {
-    return {
-      label: "In review",
-      className: "bg-lokala-brown-soft text-lokala-brown",
-    };
-  }
-  return {
-    label: "Not connected",
-    className: "bg-lokala-brown-soft text-lokala-brown",
-  };
-}
-
-function descriptionFor(status: MerchantConnectStatus, canManage: boolean): string {
-  if (status.readyForSettlement) {
-    return "Payouts are ready. When customers redeem Lokala balance at your QR code, Lokala will settle that amount to this Stripe account. Customers do not pay by card at the restaurant.";
-  }
-  if (status.onboardingStatus === "disabled") {
-    return canManage
-      ? "Stripe has disabled payouts for this account. Continue setup or open the Stripe dashboard to resolve the issue. Lokala cannot settle redemptions until this is fixed."
-      : "Stripe has disabled payouts for this account. An owner or admin needs to finish setup before Lokala can settle redemptions.";
-  }
-  if (status.onboardingStatus === "restricted") {
-    return canManage
-      ? "Stripe needs more information before Lokala can settle redeemed balance to your bank. Continue setup to finish verification."
-      : "Stripe still needs information from an owner or admin before payouts can start.";
-  }
-  if (status.onboardingStatus === "pending") {
-    return canManage
-      ? "Stripe is still reviewing your payout account. Continue setup if any details are still required. Returning from Stripe does not always mean setup is finished."
-      : "Stripe is still reviewing this payout account. Returning from Stripe does not always mean setup is finished.";
-  }
-  return canManage
-    ? "Connect Stripe so Lokala can settle redeemed gift balance to your restaurant. Customers buy Lokala balance on the platform and redeem it at your QR code — you do not take a card at the counter."
-    : "An owner or admin needs to connect Stripe before Lokala can settle redeemed gift balance to this restaurant.";
-}
+import { parseConnectRedirectResponse } from "@/lib/stripe/connect-redirect";
+import {
+  connectPayoutView,
+  type MerchantConnectStatus,
+} from "@/lib/stripe/connect-status";
 
 /**
  * Merchant payout onboarding card.
@@ -82,35 +26,20 @@ export function StripeConnectCard({
 }) {
   const [loading, setLoading] = useState<"onboard" | "login" | null>(null);
   const [error, setError] = useState<string | null>(syncError ?? null);
-
-  const connected = status.readyForSettlement;
-  const showOnboard = canManage && !connected;
-  const showContinue =
-    status.onboardingStatus === "pending" ||
-    status.onboardingStatus === "restricted" ||
-    status.onboardingStatus === "disabled";
-  const showLogin = canManage && status.hasConnectedAccount;
-  const pill = pillFor(status);
+  const view = connectPayoutView(status, canManage);
   const eventuallyDueNotice =
     status.requirementsEventuallyDue.length > 0 &&
-    status.onboardingStatus !== "restricted" &&
-    status.onboardingStatus !== "disabled";
+    view.tone !== "restricted" &&
+    view.tone !== "disabled";
 
   async function postForUrl(path: string) {
     const response = await fetch(path, { method: "POST" });
-    const data = (await response.json().catch(() => null)) as {
-      url?: string;
-      error?: string;
-    } | null;
-    if (!response.ok || !data?.url) {
-      throw new Error(
-        data?.error ?? "Could not continue Stripe setup. Please try again.",
-      );
+    const data: unknown = await response.json().catch(() => null);
+    const parsed = parseConnectRedirectResponse(data, response.ok);
+    if (!parsed.ok) {
+      throw new Error(parsed.error);
     }
-    if (/acct_|sk_(live|test)_|whsec_/.test(JSON.stringify(data))) {
-      throw new Error("Could not continue Stripe setup. Please try again.");
-    }
-    window.location.href = data.url;
+    window.location.assign(parsed.url);
   }
 
   async function startOnboarding() {
@@ -143,6 +72,15 @@ export function StripeConnectCard({
     }
   }
 
+  const pillClass =
+    view.tone === "ready"
+      ? "bg-lokala-green-light text-lokala-green-dark"
+      : view.tone === "disabled"
+        ? "bg-lokala-danger/10 text-lokala-danger"
+        : view.tone === "restricted"
+          ? "bg-lokala-danger/10 text-lokala-danger"
+          : "bg-lokala-brown-soft text-lokala-brown";
+
   return (
     <section
       id="payments"
@@ -151,7 +89,7 @@ export function StripeConnectCard({
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-lokala-green-light text-lokala-green-dark">
-            {connected ? (
+            {view.tone === "ready" ? (
               <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
             ) : (
               <Banknote className="h-6 w-6" aria-hidden="true" />
@@ -163,13 +101,13 @@ export function StripeConnectCard({
                 Payouts
               </h2>
               <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${pill.className}`}
+                className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${pillClass}`}
               >
-                {pill.label}
+                {view.pillLabel}
               </span>
             </div>
             <p className="mt-2 max-w-md text-sm leading-6 text-lokala-muted">
-              {descriptionFor(status, canManage)}
+              {view.description}
             </p>
             {eventuallyDueNotice ? (
               <p className="mt-3 rounded-xl border border-lokala-border bg-lokala-cream-light/80 px-3 py-2 text-sm leading-6 text-lokala-brown">
@@ -190,7 +128,7 @@ export function StripeConnectCard({
 
         {canManage ? (
           <div className="flex flex-col items-start gap-2 sm:pt-1">
-            {showOnboard ? (
+            {view.showOnboard ? (
               <button
                 type="button"
                 onClick={() => void startOnboarding()}
@@ -202,14 +140,12 @@ export function StripeConnectCard({
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                     Starting…
                   </>
-                ) : showContinue ? (
-                  "Continue Stripe setup"
                 ) : (
-                  "Start payout setup"
+                  view.onboardLabel
                 )}
               </button>
             ) : null}
-            {showLogin ? (
+            {view.showLogin ? (
               <button
                 type="button"
                 onClick={() => void openDashboard()}

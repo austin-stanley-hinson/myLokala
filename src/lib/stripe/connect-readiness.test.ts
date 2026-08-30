@@ -97,11 +97,38 @@ describe("deriveConnectOnboardingStatus", () => {
     );
   });
 
-  it("is disabled when Stripe sets disabled_reason", () => {
+  it("is restricted when requirements.past_due is a collection reason", () => {
     assert.equal(
       deriveConnectOnboardingStatus({
         ...completeInput,
+        details_submitted: false,
+        payouts_enabled: false,
+        transfers_enabled: false,
         disabled_reason: "requirements.past_due",
+        currently_due: ["external_account"],
+        past_due: ["external_account"],
+      }),
+      "restricted",
+    );
+  });
+
+  it("is pending while Stripe reviews submitted details", () => {
+    assert.equal(
+      deriveConnectOnboardingStatus({
+        ...completeInput,
+        payouts_enabled: false,
+        transfers_enabled: false,
+        disabled_reason: "requirements.pending_verification",
+      }),
+      "pending",
+    );
+  });
+
+  it("is disabled when Stripe sets a listed/rejected reason", () => {
+    assert.equal(
+      deriveConnectOnboardingStatus({
+        ...completeInput,
+        disabled_reason: "listed",
         currently_due: ["external_account"],
       }),
       "disabled",
@@ -173,7 +200,26 @@ describe("readinessPatchFromStripeAccount", () => {
     assert.equal(patch.transfers_enabled, false);
   });
 
-  it("maps disabled_reason to disabled", () => {
+  it("maps requirements.past_due on an incomplete account to restricted", () => {
+    const patch = readinessPatchFromStripeAccount(
+      {
+        payouts_enabled: false,
+        details_submitted: false,
+        capabilities: { transfers: "inactive" },
+        requirements: {
+          currently_due: ["business_profile.url"],
+          past_due: ["business_profile.url"],
+          disabled_reason: "requirements.past_due",
+        },
+      },
+      false,
+    );
+    assert.equal(patch.onboarding_status, "restricted");
+    assert.equal(patch.details_submitted, false);
+    assert.equal(patch.disabled_reason, "requirements.past_due");
+  });
+
+  it("maps listed disabled_reason to disabled", () => {
     const patch = readinessPatchFromStripeAccount(
       {
         payouts_enabled: false,

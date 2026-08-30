@@ -25,16 +25,32 @@ export const CONNECT_CLIENT_ERRORS = {
     "Stripe did not accept a transfers-only Express account. Lokala does not enable card payments for restaurant payouts. Contact support.",
   notConfigured: "Payout setup is not configured.",
   noAccount: "Connect payouts before opening the Stripe dashboard.",
+  onboardingIncomplete:
+    "Complete Stripe onboarding before opening the dashboard.",
   generic: "Could not start Stripe onboarding. Please try again.",
   loginGeneric: "Could not open the Stripe dashboard. Please try again.",
   syncGeneric: "Could not refresh payout status. Please try again.",
+} as const;
+
+export const CONNECT_ERROR_CODES = {
+  onboardingIncomplete: "ONBOARDING_INCOMPLETE",
 } as const;
 
 export type ConnectAdminRpc = {
   rpc: (
     fn: string,
     args?: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  ) => PromiseLike<{
+    data: unknown;
+    error: {
+      message: string;
+      code?: string | number;
+      details?: string;
+      hint?: string;
+    } | null;
+    status?: number;
+    statusText?: string;
+  }>;
 };
 
 export type ConnectAccountSnapshot = {
@@ -67,7 +83,7 @@ export type ConnectOnboardingStripe = {
 
 export type ConnectActionResult<T> =
   | { ok: true; value: T }
-  | { ok: false; status: number; error: string };
+  | { ok: false; status: number; error: string; code?: string };
 
 export type ConnectReservation =
   | { outcome: "already_connected"; stripeAccountId: string }
@@ -107,12 +123,63 @@ export function authorizeConnectMutation(
 }
 
 export function logConnectFailure(scope: string, code: string, err?: unknown): void {
-  const stripeCode =
-    err && typeof err === "object" && "code" in err
-      ? String((err as { code: unknown }).code)
-      : undefined;
-  const type = err instanceof Error ? err.name : typeof err;
-  console.error(`[${scope}] ${code}`, { type, stripeCode });
+  console.error(`[${scope}] ${code}`, sanitizeConnectError(err));
+}
+
+const SECRETISH = /sk_(live|test)_|pk_(live|test)_|whsec_|eyJ[A-Za-z0-9_-]{8,}|acct_[A-Za-z0-9]+|idempotency|sb_secret_/i;
+
+function safeErrorText(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  if (SECRETISH.test(value)) return null;
+  return value.slice(0, 180);
+}
+
+export function sanitizeConnectError(err: unknown): Record<string, unknown> {
+  const detail: Record<string, unknown> = {
+    type: err instanceof Error ? err.name : typeof err,
+  };
+  if (!err || typeof err !== "object") {
+    return detail;
+  }
+  const row = err as Record<string, unknown>;
+  if (typeof row.code === "string" || typeof row.code === "number") {
+    detail.code = row.code;
+  }
+  if (typeof row.status === "number") {
+    detail.status = row.status;
+  }
+  if (typeof row.statusCode === "number") {
+    detail.statusCode = row.statusCode;
+  }
+  if (typeof row.requestId === "string") {
+    detail.requestId = row.requestId;
+  } else if (typeof row.request_id === "string") {
+    detail.requestId = row.request_id;
+  }
+  if (typeof row.type === "string" && /stripe|invalid_request|api_error|card_error|idempotency/i.test(row.type)) {
+    detail.stripeType = row.type;
+  } else if (typeof row.rawType === "string") {
+    detail.stripeType = row.rawType;
+  }
+  const message = safeErrorText(row.message);
+  if (message) detail.message = message;
+  const details = safeErrorText(row.details);
+  if (details) detail.details = details;
+  const hint = safeErrorText(row.hint);
+  if (hint) detail.hint = hint;
+  return detail;
+}
+
+function attachRpcHttpStatus(
+  error: { message: string },
+  status: number | undefined,
+): unknown {
+  if (typeof status !== "number") return error;
+  const row = error as Record<string, unknown>;
+  if (typeof row.status === "number" || typeof row.statusCode === "number") {
+    return error;
+  }
+  return { ...row, status };
 }
 
 export function isTransfersOnlyRejected(err: unknown): boolean {
@@ -124,16 +191,31 @@ export function isTransfersOnlyRejected(err: unknown): boolean {
   );
 }
 
+function isLoginLinkOnboardingIncomplete(err: unknown): boolean {
+  const message =
+    err instanceof Error ? err.message.toLowerCase() : String(err ?? "").toLowerCase();
+  return message.includes("has not completed onboarding");
+}
+
+function onboardingIncompleteResult(): ConnectActionResult<never> {
+  return {
+    ok: false,
+    status: 409,
+    error: CONNECT_CLIENT_ERRORS.onboardingIncomplete,
+    code: CONNECT_ERROR_CODES.onboardingIncomplete,
+  };
+}
+
 function clientErrorFromStripeCreate(err: unknown): ConnectActionResult<never> {
   if (isTransfersOnlyRejected(err)) {
-    logConnectFailure("connect.onboard", "transfers_only_rejected");
+    logConnectFailure("connect.onboard", "transfers_only_rejected", err);
     return {
       ok: false,
       status: 409,
       error: CONNECT_CLIENT_ERRORS.transfersOnlyRejected,
     };
   }
-  logConnectFailure("connect.onboard", "stripe_create_failed");
+  logConnectFailure("connect.onboard", "stripe_create_failed", err);
   return { ok: false, status: 500, error: CONNECT_CLIENT_ERRORS.generic };
 }
 
@@ -142,9 +224,9 @@ async function rpcJson(
   fn: string,
   args?: Record<string, unknown>,
 ): Promise<JsonRecord | null> {
-  const { data, error } = await admin.rpc(fn, args);
+  const { data, error, status } = await admin.rpc(fn, args);
   if (error) {
-    throw error;
+    throw attachRpcHttpStatus(error, status);
   }
   return asRecord(data);
 }
@@ -152,9 +234,11 @@ async function rpcJson(
 export async function readPlatformStripeLivemode(
   admin: ConnectAdminRpc,
 ): Promise<boolean> {
-  const { data, error } = await admin.rpc("service_get_platform_stripe_livemode");
+  const { data, error, status } = await admin.rpc(
+    "service_get_platform_stripe_livemode",
+  );
   if (error) {
-    throw error;
+    throw attachRpcHttpStatus(error, status);
   }
   const value = asBoolean(data);
   if (value === null) {
@@ -263,7 +347,7 @@ export async function startConnectOnboarding(input: {
     platformConfigLive = await readPlatformStripeLivemode(input.admin);
   } catch (err) {
     logConnectFailure("connect.onboard", "platform_livemode_failed", err);
-    return { ok: false, status: 500, error: CONNECT_CLIENT_ERRORS.notConfigured };
+    return { ok: false, status: 500, error: CONNECT_CLIENT_ERRORS.generic };
   }
 
   if (platformConfigLive !== input.platformLive) {
@@ -432,6 +516,18 @@ export async function createExpressLoginLink(input: {
     return { ok: false, status: 409, error: CONNECT_CLIENT_ERRORS.noAccount };
   }
 
+  let account: ConnectAccountSnapshot;
+  try {
+    account = await input.stripe.accounts.retrieve(accountId);
+  } catch (err) {
+    logConnectFailure("connect.login", "retrieve_failed", err);
+    return { ok: false, status: 500, error: CONNECT_CLIENT_ERRORS.loginGeneric };
+  }
+
+  if (!account.details_submitted) {
+    return onboardingIncompleteResult();
+  }
+
   try {
     const link = await input.stripe.accounts.createLoginLink(accountId);
     const url = link.url?.trim();
@@ -440,6 +536,9 @@ export async function createExpressLoginLink(input: {
     }
     return { ok: true, value: { url } };
   } catch (err) {
+    if (isLoginLinkOnboardingIncomplete(err)) {
+      return onboardingIncompleteResult();
+    }
     logConnectFailure("connect.login", "login_link_failed", err);
     return { ok: false, status: 500, error: CONNECT_CLIENT_ERRORS.loginGeneric };
   }
@@ -457,10 +556,21 @@ export function connectJson(body: unknown, status = 200): Response {
 
 export function payloadHasForbiddenFields(payload: unknown): boolean {
   const raw = JSON.stringify(payload);
-  return (
-    /acct_[A-Za-z0-9]+/.test(raw) ||
-    /sk_(live|test)_/.test(raw) ||
-    /whsec_/.test(raw) ||
-    /idempotency/i.test(raw)
-  );
+  if (/sk_(live|test)_/.test(raw) || /whsec_/.test(raw) || /idempotency/i.test(raw)) {
+    return true;
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return /acct_[A-Za-z0-9]+/.test(raw);
+  }
+  const row = payload as Record<string, unknown>;
+  if ("stripe_account_id" in row || "account" in row) {
+    return true;
+  }
+  for (const [key, value] of Object.entries(row)) {
+    if (key === "url") continue;
+    if (typeof value === "string" && /acct_[A-Za-z0-9]+/.test(value)) {
+      return true;
+    }
+  }
+  return false;
 }

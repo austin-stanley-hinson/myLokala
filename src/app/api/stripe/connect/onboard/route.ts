@@ -9,6 +9,7 @@ import {
 import { getStripe, isStripePlatformLive } from "@/lib/stripe/server";
 import { getActiveMembership, getMerchantAccount } from "@/lib/auth/merchant";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
 import { createTypedClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +21,7 @@ export const dynamic = "force-dynamic";
  * Returns only an Account Link URL. Never returns a Stripe account id.
  */
 export async function POST(request: NextRequest) {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!hasPublicSupabaseEnv()) {
     return connectJson({ error: CONNECT_CLIENT_ERRORS.notConfigured }, 500);
   }
 

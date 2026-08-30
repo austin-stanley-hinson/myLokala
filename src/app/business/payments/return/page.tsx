@@ -3,6 +3,7 @@ import { canManageMerchant } from "@/lib/auth/merchant";
 import { StripeConnectCard } from "@/components/business/stripe-connect-card";
 import {
   EMPTY_CONNECT_STATUS,
+  connectPayoutView,
   parseMerchantConnectStatus,
 } from "@/lib/stripe/connect-status";
 import { syncConnectedAccountFromStripe } from "@/lib/stripe/connect-onboarding";
@@ -47,16 +48,18 @@ export default async function PaymentsReturnPage() {
   const status = error
     ? EMPTY_CONNECT_STATUS
     : parseMerchantConnectStatus(data);
+  const view = connectPayoutView(status, canManage);
 
   const headline =
-    status.readyForSettlement
+    view.tone === "ready"
       ? "Payouts are ready"
-      : status.onboardingStatus === "restricted" ||
-          status.onboardingStatus === "disabled"
-        ? "Stripe needs more information"
-        : status.onboardingStatus === "pending"
-          ? "Stripe is still reviewing your account"
-          : "Finish payout setup";
+      : view.tone === "incomplete"
+        ? "Stripe setup incomplete"
+        : view.tone === "restricted" || view.tone === "disabled"
+          ? "Stripe needs more information"
+          : view.tone === "pending"
+            ? "Stripe is still reviewing your account"
+            : "Finish payout setup";
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6">
