@@ -3,8 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { PayAmountForm } from "@/components/pay/pay-amount-form";
-import { lookupBusinessForQrCode } from "@/lib/business/qr-public";
+import { DeferredFeatureNotice } from "@/components/layout/deferred-feature-notice";
 
 export const dynamic = "force-dynamic";
 
@@ -12,63 +11,30 @@ type PayPageProps = {
   params: Promise<{ public_code: string }>;
 };
 
-export async function generateMetadata({
-  params,
-}: PayPageProps): Promise<Metadata> {
-  const { public_code } = await params;
-  const business = await lookupBusinessForQrCode(public_code);
+/**
+ * Static, non-indexed metadata. The page stays public but no longer looks the
+ * business up in the legacy `business_qr_codes` table (via the QR RPC), so it
+ * does not advertise a specific merchant while QR pay is deferred.
+ */
+export const metadata: Metadata = {
+  title: {
+    absolute: "Pay with Lokala",
+  },
+  description: "Paying local businesses with Lokala is coming soon.",
+  robots: { index: false, follow: false },
+};
 
-  if (!business) {
-    return {
-      title: {
-        absolute: "Payment link not found | Lokala",
-      },
-      robots: { index: false, follow: false },
-    };
-  }
-
-  return {
-    title: {
-      absolute: `Pay ${business.business_name} | Lokala`,
-    },
-    description: `Pay ${business.business_name} with Lokala.`,
-    robots: { index: false, follow: false },
-  };
-}
-
+/**
+ * QUARANTINED (gift-balance MVP): QR pay depended on the legacy
+ * `business_qr_codes` table and on payment processing that is not live yet.
+ * This route remains PUBLIC (no auth) but no longer queries any legacy QR table.
+ * It renders a stable "coming soon" state. The legacy QR/pay components remain
+ * in the repo for the later payments phase.
+ */
 export default async function PayByQrPage({ params }: PayPageProps) {
-  const { public_code } = await params;
-  const business = await lookupBusinessForQrCode(public_code);
-
-  if (!business) {
-    return (
-      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-4 px-4 py-16 sm:px-6">
-        <Link href="/" className="inline-flex items-center gap-2 self-start">
-          <Image
-            src="/logo-try-1.png"
-            alt=""
-            width={36}
-            height={36}
-            className="size-9 rounded-xl object-cover"
-          />
-          <BrandWordmark className="text-xl" />
-        </Link>
-        <h1 className="text-2xl font-extrabold text-lokala-brown-dark">
-          Payment link not found
-        </h1>
-        <p className="text-sm leading-6 text-lokala-muted">
-          This QR code is inactive or doesn&apos;t match a Lokala business.
-          Ask the business for their current Lokala QR code.
-        </p>
-        <Link
-          href="/"
-          className="mt-2 inline-flex w-fit rounded-full border border-lokala-border bg-white px-4 py-2.5 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
-        >
-          Back to Lokala
-        </Link>
-      </div>
-    );
-  }
+  // Awaited so the dynamic segment is consumed, but intentionally unused: we no
+  // longer resolve a specific business from the (missing) legacy QR table.
+  await params;
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 px-4 py-10 sm:px-6">
@@ -85,32 +51,14 @@ export default async function PayByQrPage({ params }: PayPageProps) {
           </span>
           <BrandWordmark className="text-xl" />
         </Link>
-
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-lokala-green-dark">
-            Pay with Lokala
-          </p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-lokala-brown-dark">
-            {business.business_name}
-          </h1>
-          {business.business_address ? (
-            <p className="mt-1 text-sm font-semibold text-lokala-muted">
-              {business.business_address}
-            </p>
-          ) : (
-            <p className="mt-1 text-sm font-semibold text-lokala-muted">
-              Waterville, ME
-            </p>
-          )}
-        </div>
       </header>
 
-      <PayAmountForm businessName={business.business_name} />
-
-      <p className="text-center text-xs font-semibold text-lokala-muted">
-        No customer account required on the web. Payment processing is not live
-        yet.
-      </p>
+      <DeferredFeatureNotice
+        eyebrow="Pay with Lokala"
+        title="QR payments are coming soon"
+        description="Paying local businesses by scanning their Lokala QR code is being rebuilt on the new Lokala platform. Payment processing isn't live yet — check back soon."
+        actions={[{ href: "/", label: "Back to Lokala" }]}
+      />
     </div>
   );
 }

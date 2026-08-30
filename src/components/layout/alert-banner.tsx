@@ -13,14 +13,13 @@ export function AlertBanner() {
             className="hidden h-2 w-2 shrink-0 rounded-full bg-lokala-green sm:inline-block"
             aria-hidden
           />
-          New local gift certificates are now available for participating
-          Waterville businesses.
+          Lokala is launching gift balance for the Waterville community.
         </p>
         <Link
-          href="/gift-certificates"
+          href="/signup"
           className="text-sm font-bold text-lokala-green-dark underline-offset-4 hover:underline"
         >
-          Learn more
+          Sign up your business
         </Link>
       </div>
     </div>

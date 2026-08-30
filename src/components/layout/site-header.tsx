@@ -152,9 +152,9 @@ export function SiteHeader() {
         { href: "/business/gift-certificates", label: "Gift Certificates" },
       ]
     : [
+        // Deal discovery and web gift purchasing are quarantined for the
+        // gift-balance MVP, so they're intentionally omitted from navigation.
         { href: "/", label: "Home" },
-        { href: "/browse", label: "Browse Deals" },
-        { href: "/gift-certificates", label: "Gift Certificates" },
         { href: "/signup", label: "For Businesses" },
       ];
 
