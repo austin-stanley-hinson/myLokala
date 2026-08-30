@@ -20,6 +20,11 @@ import type { Database } from "@/types/database";
 
 export type MerchantRole = "owner" | "admin" | "staff";
 
+/** Owner and admin may mutate merchant profile, locations, and payment hubs. */
+export function canManageMerchant(role: MerchantRole | null | undefined): boolean {
+  return role === "owner" || role === "admin";
+}
+
 export type MerchantAccount =
   Database["public"]["Tables"]["merchant_accounts"]["Row"];
 

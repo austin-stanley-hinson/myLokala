@@ -801,6 +801,27 @@ export type Database = {
         }
         Returns: Json
       }
+      create_merchant_location: {
+        Args: {
+          p_address_line1?: string
+          p_address_line2?: string
+          p_address_text?: string
+          p_city?: string
+          p_country?: string
+          p_label: string
+          p_latitude?: number
+          p_longitude?: number
+          p_merchant_account_id: string
+          p_postal_code?: string
+          p_region?: string
+          p_timezone?: string
+        }
+        Returns: Json
+      }
+      ensure_location_payment_hub: {
+        Args: { p_location_id: string }
+        Returns: Json
+      }
       generate_payment_hub_public_code: { Args: never; Returns: string }
       is_merchant_member: {
         Args: { p_merchant_account_id: string; p_roles?: string[] }
@@ -826,6 +847,36 @@ export type Database = {
           payment_hub_id: string
           public_code: string
         }[]
+      }
+      update_merchant_location: {
+        Args: {
+          p_address_line1?: string
+          p_address_line2?: string
+          p_address_text?: string
+          p_city?: string
+          p_country?: string
+          p_label: string
+          p_latitude?: number
+          p_location_id: string
+          p_longitude?: number
+          p_postal_code?: string
+          p_region?: string
+          p_status?: string
+          p_timezone?: string
+        }
+        Returns: Json
+      }
+      update_merchant_profile: {
+        Args: {
+          p_description?: string
+          p_display_name: string
+          p_legal_name?: string
+          p_merchant_account_id: string
+          p_support_email?: string
+          p_support_phone?: string
+          p_website_url?: string
+        }
+        Returns: Json
       }
     }
     Enums: {

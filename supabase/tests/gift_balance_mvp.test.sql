@@ -6,7 +6,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(29);
+select plan(46);
 
 -- Deterministic fixture UUIDs (session-local helpers only; no tests schema).
 create function pg_temp.uid(p_label text)
@@ -881,6 +881,444 @@ select ok(
       and status = 'active'
   ),
   '29: a user may hold a non-owner membership in another merchant'
+);
+
+-- ---------------------------------------------------------------------------
+-- Merchant setup mutations (profile, locations, payment hubs)
+-- ---------------------------------------------------------------------------
+
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  is_sso_user, is_anonymous
+) values (
+  pg_temp.uid('admin_a'),
+  '00000000-0000-0000-0000-000000000000',
+  'authenticated',
+  'authenticated',
+  'admin_a@example.test',
+  extensions.crypt('password', extensions.gen_salt('bf')),
+  timezone('utc', now()),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"display_name":"Admin A"}'::jsonb,
+  timezone('utc', now()),
+  timezone('utc', now()),
+  false,
+  false
+);
+
+insert into public.merchant_members (merchant_account_id, user_id, role, status)
+values (pg_temp.uid('merchant_a'), pg_temp.uid('admin_a'), 'admin', 'active');
+
+-- 30. Owner can update merchant profile fields.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select is(
+  (
+    select (public.update_merchant_profile(
+      pg_temp.uid('merchant_a'),
+      'Merchant A Updated',
+      'Merchant A LLC',
+      'A local shop',
+      'hello@merchant-a.test',
+      '207-555-0100',
+      'https://merchant-a.test'
+    ) ->> 'display_name')
+  ),
+  'Merchant A Updated',
+  '30: owner can update merchant profile fields'
+);
+
+reset role;
+
+-- 31. Staff cannot mutate the profile.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('staff_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select throws_ok(
+  $$select public.update_merchant_profile(pg_temp.uid('merchant_a'), 'Staff Hack')$$,
+  '42501',
+  'Not authorized',
+  '31: staff cannot update merchant profile'
+);
+
+reset role;
+
+-- 32. Customer cannot mutate the profile.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('customer_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select throws_ok(
+  $$select public.update_merchant_profile(pg_temp.uid('merchant_a'), 'Customer Hack')$$,
+  '42501',
+  'Not authorized',
+  '32: customer cannot update merchant profile'
+);
+
+reset role;
+
+-- 33. Anonymous callers cannot mutate the profile.
+select set_config('request.jwt.claim.sub', '', true);
+select set_config('request.jwt.claim.role', '', true);
+select set_config('request.jwt.claims', '', true);
+
+select throws_ok(
+  $$select public.update_merchant_profile(pg_temp.uid('merchant_a'), 'Anon Hack')$$,
+  '42501',
+  'Authentication required',
+  '33: anonymous callers cannot update merchant profile'
+);
+
+-- 34. Owner cannot update another merchant.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_b')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select throws_ok(
+  $$select public.update_merchant_profile(pg_temp.uid('merchant_a'), 'Cross Hack')$$,
+  '42501',
+  'Not authorized',
+  '34: owner cannot update another merchant profile'
+);
+
+reset role;
+
+-- 35. Blank display_name is rejected and does not change the row.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+declare
+  blocked boolean := false;
+  kept text;
+begin
+  begin
+    perform public.update_merchant_profile(pg_temp.uid('merchant_a'), '   ');
+  exception
+    when others then
+      blocked := true;
+  end;
+  select display_name into kept
+  from public.merchant_accounts
+  where id = pg_temp.uid('merchant_a');
+  perform set_config(
+    'lokala_test.profile_blank',
+    (blocked and kept = 'Merchant A Updated')::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.profile_blank')::boolean,
+  '35: blank display_name is rejected without changing the profile'
+);
+
+-- 36. Owner creates a location and a payment hub atomically.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+declare
+  r jsonb;
+  loc_count int;
+  hub_count int;
+begin
+  r := public.create_merchant_location(
+    pg_temp.uid('merchant_a'),
+    'Front Counter',
+    null, '12 Main St', null, 'Waterville', 'ME', '04901', 'US',
+    44.552, -69.632, null
+  );
+  select count(*)::int into loc_count
+  from public.merchant_locations
+  where id = (r ->> 'location_id')::uuid
+    and merchant_account_id = pg_temp.uid('merchant_a');
+  select count(*)::int into hub_count
+  from public.payment_hubs
+  where merchant_location_id = (r ->> 'location_id')::uuid
+    and status = 'active'
+    and public_code is not null
+    and length(public_code) > 10;
+  perform set_config('lokala_test.loc_a', r ->> 'location_id', true);
+  perform set_config('lokala_test.hub_code_loc', r ->> 'public_code', true);
+  perform set_config('lokala_test.hub_id_loc', r ->> 'payment_hub_id', true);
+  perform set_config(
+    'lokala_test.create_loc_ok',
+    (loc_count = 1 and hub_count = 1)::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.create_loc_ok')::boolean,
+  '36: create_merchant_location atomically creates location + payment hub'
+);
+
+-- 37. Repeated hub creation is idempotent.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select ok(
+  (
+    with r as (
+      select public.ensure_location_payment_hub(
+        current_setting('lokala_test.loc_a')::uuid
+      ) as payload
+    )
+    select (payload ->> 'payment_hub_id') = current_setting('lokala_test.hub_id_loc')
+      and (payload ->> 'public_code') = current_setting('lokala_test.hub_code_loc')
+      and (payload ->> 'idempotent')::boolean = true
+    from r
+  ),
+  '37: ensure_location_payment_hub is idempotent'
+);
+
+reset role;
+
+-- 38. Staff cannot create a location.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('staff_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select throws_ok(
+  $$select public.create_merchant_location(pg_temp.uid('merchant_a'), 'Staff Shop')$$,
+  '42501',
+  'Not authorized',
+  '38: staff cannot create a location'
+);
+
+reset role;
+
+-- 39. Owner cannot create a location on another merchant.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_b')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select throws_ok(
+  $$select public.create_merchant_location(pg_temp.uid('merchant_a'), 'Poached')$$,
+  '42501',
+  'Not authorized',
+  '39: owner cannot create a location on another merchant'
+);
+
+reset role;
+
+-- 40. Invalid label rolls back with no orphan location.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+declare
+  before_count int;
+  after_count int;
+  blocked boolean := false;
+begin
+  select count(*)::int into before_count
+  from public.merchant_locations
+  where merchant_account_id = pg_temp.uid('merchant_a');
+  begin
+    perform public.create_merchant_location(pg_temp.uid('merchant_a'), '   ');
+  exception
+    when others then
+      blocked := true;
+  end;
+  select count(*)::int into after_count
+  from public.merchant_locations
+  where merchant_account_id = pg_temp.uid('merchant_a');
+  perform set_config(
+    'lokala_test.loc_orphan',
+    (blocked and before_count = after_count)::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.loc_orphan')::boolean,
+  '40: invalid location label rolls back with no orphan location'
+);
+
+-- 41. Unique index rejects a second active hub for the same location.
+select throws_ok(
+  format(
+    $$insert into public.payment_hubs (
+        merchant_account_id, merchant_location_id, public_code, status
+      ) values (%L, %L, 'duplicate-active-hub', 'active')$$,
+    pg_temp.uid('merchant_a'),
+    current_setting('lokala_test.loc_a')::uuid
+  ),
+  '23505',
+  null,
+  '41: unique index rejects a second active hub for the same location'
+);
+
+-- 42. Deactivating a location hides it from the public resolver; reactivating
+--     restores the same public_code.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+declare
+  hidden int;
+  restored text;
+  same_code boolean;
+begin
+  perform public.update_merchant_location(
+    current_setting('lokala_test.loc_a')::uuid,
+    'Front Counter',
+    'inactive'
+  );
+  select count(*)::int into hidden
+  from public.resolve_payment_hub(current_setting('lokala_test.hub_code_loc'));
+  perform public.update_merchant_location(
+    current_setting('lokala_test.loc_a')::uuid,
+    'Front Counter',
+    'active'
+  );
+  select public_code into restored
+  from public.payment_hubs
+  where id = current_setting('lokala_test.hub_id_loc')::uuid;
+  same_code := restored = current_setting('lokala_test.hub_code_loc');
+  perform set_config(
+    'lokala_test.loc_cycle',
+    (hidden = 0 and same_code)::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.loc_cycle')::boolean,
+  '42: inactive location cannot resolve; reactivate keeps the same public_code'
+);
+
+-- 43. Resolver returns location identity; inactive merchant cannot resolve.
+select ok(
+  (
+    select location_label
+    from public.resolve_payment_hub(current_setting('lokala_test.hub_code_loc'))
+  ) = 'Front Counter'
+  and (
+    select count(*)::int from public.resolve_payment_hub('hub-code-susp')
+  ) = 0,
+  '43: resolver returns location label and hides inactive merchants'
+);
+
+-- 44. Authenticated clients cannot write merchant tables directly.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+declare
+  updated int := -1;
+  insert_blocked boolean := false;
+begin
+  begin
+    update public.merchant_accounts
+    set status = 'closed'
+    where id = pg_temp.uid('merchant_a');
+    get diagnostics updated = row_count;
+  exception
+    when insufficient_privilege then
+      updated := 0;
+    when others then
+      updated := 0;
+  end;
+  begin
+    insert into public.payment_hubs (
+      merchant_account_id, merchant_location_id, public_code, status
+    ) values (
+      pg_temp.uid('merchant_a'),
+      current_setting('lokala_test.loc_a')::uuid,
+      'client-forged-code',
+      'active'
+    );
+  exception
+    when insufficient_privilege then
+      insert_blocked := true;
+    when others then
+      insert_blocked := true;
+  end;
+  perform set_config(
+    'lokala_test.table_denied',
+    (updated = 0 and insert_blocked)::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.table_denied')::boolean,
+  '44: authenticated clients cannot write merchant tables directly'
+);
+
+-- 45. Admin can mutate (create a second location).
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('admin_a')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select ok(
+  (
+    select (public.create_merchant_location(
+      pg_temp.uid('merchant_a'),
+      'Kitchen Window'
+    ) ->> 'label')
+  ) = 'Kitchen Window',
+  '45: admin can create a location'
+);
+
+reset role;
+
+-- 46. Creating the first location activates a draft merchant.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_c')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+declare
+  merchant_id uuid;
+  r jsonb;
+  new_status text;
+begin
+  select id into merchant_id
+  from public.merchant_accounts
+  where created_by = pg_temp.uid('owner_c');
+  r := public.create_merchant_location(merchant_id, 'Owner C Counter');
+  select status into new_status
+  from public.merchant_accounts
+  where id = merchant_id;
+  perform set_config(
+    'lokala_test.draft_activated',
+    (
+      new_status = 'active'
+      and (r ->> 'public_code') is not null
+    )::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.draft_activated')::boolean,
+  '46: first location activates a draft merchant and creates a hub'
 );
 
 select * from finish();

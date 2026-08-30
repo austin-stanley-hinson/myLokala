@@ -5,9 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  CreditCard,
   KeyRound,
   LogOut,
+  MapPin,
   Menu,
   UserRound,
   X,
@@ -148,8 +148,7 @@ export function SiteHeader() {
     ? [
         { href: "/business", label: "Dashboard" },
         { href: "/business/profile", label: "Profile" },
-        { href: "/business/payments", label: "Payments" },
-        { href: "/business/gift-certificates", label: "Gift Certificates" },
+        { href: "/business/locations", label: "Locations" },
       ]
     : [
         // Deal discovery and web gift purchasing are quarantined for the
@@ -165,7 +164,7 @@ export function SiteHeader() {
   const accountMenuItems: AccountItem[] = businessOwner
     ? [
         { href: "/business/profile", label: "Profile", icon: UserRound },
-        { href: "/business/payments", label: "Payments", icon: CreditCard },
+        { href: "/business/locations", label: "Locations", icon: MapPin },
         { href: "/forgot-password", label: "Change password", icon: KeyRound },
       ]
     : [];

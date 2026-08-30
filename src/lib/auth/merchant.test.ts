@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  canManageMerchant,
   createMerchantAccount,
   getActiveMembership,
   isActiveMerchantMember,
@@ -100,6 +101,15 @@ describe("isActiveMerchantMember", () => {
   it("is false for a non-member", async () => {
     const { client } = makeClient({ members: { data: null, error: null } });
     assert.equal(await isActiveMerchantMember(client, "u"), false);
+  });
+});
+
+describe("canManageMerchant", () => {
+  it("allows owner and admin, denies staff and empty", () => {
+    assert.equal(canManageMerchant("owner"), true);
+    assert.equal(canManageMerchant("admin"), true);
+    assert.equal(canManageMerchant("staff"), false);
+    assert.equal(canManageMerchant(null), false);
   });
 });
 

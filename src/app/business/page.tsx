@@ -1,20 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CreditCard, Gift, Store } from "lucide-react";
+import { CreditCard, MapPin, Store } from "lucide-react";
 
 import { getBusinessContext } from "@/lib/auth/business-context";
 import { buildPageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Safe generic metadata for the business portal entry. The page itself remains
- * auth-gated (redirects non-owners). Not listed in the public sitemap.
- */
 export const metadata: Metadata = buildPageMetadata({
-  title: "Lokala for Businesses | Local Deals and Gift Certificates",
+  title: "Lokala for Businesses | Gift Balance",
   description:
-    "Create a Lokala business account to manage your local business profile, prepare gift certificates, and connect payments securely.",
+    "Manage your Lokala merchant profile, locations, and payment QR codes.",
   path: "/business",
 });
 
@@ -27,23 +23,24 @@ export default async function BusinessOverviewPage() {
     {
       href: "/business/profile",
       label: "Business profile",
-      description: "Review your business name, contact details, and status.",
+      description: "Update your business name, contact details, and description.",
       hint: businessName,
       icon: Store,
     },
     {
-      href: "/business/payments",
-      label: "Payments",
-      description: "Connect Stripe to accept payments and receive payouts.",
-      hint: "Setup coming soon",
-      icon: CreditCard,
+      href: "/business/locations",
+      label: "Locations & QR",
+      description:
+        "Add store locations and print a permanent payment QR for each one.",
+      hint: "Ready now",
+      icon: MapPin,
     },
     {
-      href: "/business/gift-certificates",
-      label: "Gift certificates",
-      description: "Publish gift certificates for local customers to buy.",
-      hint: "Coming soon",
-      icon: Gift,
+      href: "/business/payments",
+      label: "Payments",
+      description: "Connect payouts so customers can redeem Lokala balance.",
+      hint: "Coming next",
+      icon: CreditCard,
     },
   ];
 
