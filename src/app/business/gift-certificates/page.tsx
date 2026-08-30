@@ -1,17 +1,16 @@
 import Link from "next/link";
 
-import {
-  getBusinessContext,
-  isPaymentsConnected,
-} from "@/lib/auth/business-context";
+import { getBusinessContext } from "@/lib/auth/business-context";
 import { BusinessQrSection } from "@/components/business/business-qr-section";
 import { GiftCertificatesSection } from "@/components/business/gift-certificates-section";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessGiftCertificatesPage() {
-  const { userId, businessName, paymentAccount } = await getBusinessContext();
-  const connected = isPaymentsConnected(paymentAccount);
+  const { userId, merchant } = await getBusinessContext();
+  const businessName = merchant.display_name;
+  // Stripe Connect readiness is part of the deferred payments rebuild.
+  const connected = false;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6">

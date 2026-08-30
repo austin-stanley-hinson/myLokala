@@ -1,13 +1,16 @@
-import { getBusinessContext, isPaymentsConnected } from "@/lib/auth/business-context";
+import { getBusinessContext } from "@/lib/auth/business-context";
 import { StripeConnectCard } from "@/components/business/stripe-connect-card";
 import { StripeFaqSection } from "@/components/business/stripe-faq-section";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessPaymentsPage() {
-  const { paymentAccount } = await getBusinessContext();
-  const paymentsReady = isPaymentsConnected(paymentAccount);
+  // Guard: only active merchant members reach payments.
+  await getBusinessContext();
 
+  // Stripe Connect is being rebuilt on the new schema
+  // (`app_private.stripe_connected_accounts`) and is out of scope for the Auth
+  // foundation. Until then the card renders its not-connected state.
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6">
       <header>
@@ -23,10 +26,10 @@ export default async function BusinessPaymentsPage() {
       </header>
 
       <StripeConnectCard
-        onboardingStatus={paymentAccount?.onboarding_status ?? null}
-        chargesEnabled={Boolean(paymentAccount?.charges_enabled)}
-        payoutsEnabled={Boolean(paymentAccount?.payouts_enabled)}
-        paymentsReady={paymentsReady}
+        onboardingStatus={null}
+        chargesEnabled={false}
+        payoutsEnabled={false}
+        paymentsReady={false}
       />
 
       <StripeFaqSection />

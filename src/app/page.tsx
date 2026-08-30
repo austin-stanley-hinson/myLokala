@@ -5,7 +5,7 @@ import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardRightRail } from "@/components/dashboard/dashboard-right-rail";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { HomeDealsSection } from "@/components/dashboard/home-deals-section";
-import { resolveBusinessOwner } from "@/lib/auth/business-profile";
+import { isActiveMerchantMember } from "@/lib/auth/merchant";
 import { getHomepageFeaturedDeals } from "@/lib/deals/homepage-featured";
 import { buildPageMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
@@ -112,7 +112,10 @@ export default async function HomePage() {
   const categories = ["All", ...distinctCategories];
 
   const userName = user?.user_metadata?.full_name as string | undefined;
-  const isBusiness = user ? await resolveBusinessOwner(supabase, user) : false;
+  // Merchant access is determined solely by an active `merchant_members` row.
+  const isBusiness = user
+    ? await isActiveMerchantMember(supabase, user.id)
+    : false;
 
   return (
     <DashboardShell

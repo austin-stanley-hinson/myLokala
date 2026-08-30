@@ -4,11 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/client";
-import {
-  reconcileBusinessOwnerOnLogin,
-  resolveBusinessOwner,
-} from "@/lib/auth/business-profile";
+import { createTypedClient } from "@/lib/supabase/client";
+import { isActiveMerchantMember } from "@/lib/auth/merchant";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,16 +14,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // A business owner who is already signed in shouldn't sit on the login page.
+  // An already-signed-in merchant member shouldn't sit on the login page.
   useEffect(() => {
-    const supabase = createClient();
+    const supabase = createTypedClient();
     let cancelled = false;
     void (async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (cancelled || !user) return;
-      if (await resolveBusinessOwner(supabase, user)) {
+      if (await isActiveMerchantMember(supabase, user.id)) {
         if (!cancelled) router.replace("/business");
       }
     })();
@@ -41,7 +38,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
+      const supabase = createTypedClient();
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -62,14 +59,13 @@ export default function LoginPage() {
         return;
       }
 
-      // The website's sign-in is for businesses; customers use the mobile app.
-      // Reconcile ownership against profiles (source of truth), promoting from
-      // metadata when needed, then route business owners into the dashboard and
-      // everyone else to the public home page.
-      if (await reconcileBusinessOwnerOnLogin(supabase, user)) {
+      // The website's sign-in is for businesses. Active merchant members go to
+      // their dashboard; anyone else is sent to self-serve merchant onboarding
+      // (a customer-only account gains no access to an existing merchant).
+      if (await isActiveMerchantMember(supabase, user.id)) {
         router.replace("/business");
       } else {
-        router.replace("/");
+        router.replace("/business/onboarding");
       }
       router.refresh();
     } catch (err) {

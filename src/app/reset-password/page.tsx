@@ -4,8 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/client";
-import { resolveBusinessOwner } from "@/lib/auth/business-profile";
+import { createTypedClient } from "@/lib/supabase/client";
+import { isActiveMerchantMember } from "@/lib/auth/merchant";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -24,7 +24,7 @@ export default function ResetPasswordPage() {
   // The recovery link (via /auth/callback) establishes a session before landing
   // here. Confirm one exists so we can require an authenticated recovery flow.
   useEffect(() => {
-    const supabase = createClient();
+    const supabase = createTypedClient();
     let cancelled = false;
     void (async () => {
       const {
@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     try {
-      const supabase = createClient();
+      const supabase = createTypedClient();
       const { error: updateError } = await supabase.auth.updateUser({
         password,
       });
@@ -63,13 +63,16 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      // Route by role: business owners back to the dashboard, others to public.
+      // Route by membership: active merchant members back to the dashboard,
+      // everyone else to the public home page.
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const owner = user ? await resolveBusinessOwner(supabase, user) : false;
+      const member = user
+        ? await isActiveMerchantMember(supabase, user.id)
+        : false;
 
-      router.replace(owner ? "/business" : "/");
+      router.replace(member ? "/business" : "/");
       router.refresh();
     } catch (err) {
       setError(

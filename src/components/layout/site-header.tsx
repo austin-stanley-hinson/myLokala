@@ -17,11 +17,8 @@ import type { AuthChangeEvent, User } from "@supabase/supabase-js";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { buttonVariants } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
-import {
-  isBusinessOwner,
-  resolveBusinessOwner,
-} from "@/lib/auth/business-profile";
+import { createClient, createTypedClient } from "@/lib/supabase/client";
+import { isActiveMerchantMember } from "@/lib/auth/merchant";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string };
@@ -101,6 +98,7 @@ export function SiteHeader() {
         setUser(nextUser);
 
         if (!nextUser) {
+          setBusinessOwner(false);
           setMenuOpen(false);
         }
       },
@@ -112,19 +110,16 @@ export function SiteHeader() {
     };
   }, []);
 
-  // Resolve business ownership from the profiles table (source of truth), with
-  // an optimistic metadata check first to avoid a nav flicker for owners.
+  // Resolve merchant access from an active `merchant_members` row (the
+  // authorization source of truth). No metadata optimism — membership only.
+  // Clearing on sign-out is handled in the auth-state listener above so this
+  // effect never sets state synchronously during commit.
   useEffect(() => {
-    if (!user) {
-      setBusinessOwner(false);
-      return;
-    }
+    if (!user) return;
 
-    setBusinessOwner(isBusinessOwner(user));
-
-    const supabase = createClient();
+    const supabase = createTypedClient();
     let cancelled = false;
-    void resolveBusinessOwner(supabase, user).then((result) => {
+    void isActiveMerchantMember(supabase, user.id).then((result) => {
       if (!cancelled) setBusinessOwner(result);
     });
     return () => {

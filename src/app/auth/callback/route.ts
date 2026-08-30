@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { createClient } from "@/lib/supabase/server";
-import { reconcileBusinessOwnerOnLogin } from "@/lib/auth/business-profile";
+import { createTypedClient } from "@/lib/supabase/server";
+import { isActiveMerchantMember } from "@/lib/auth/merchant";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +23,13 @@ function safeNext(next: string | null): string {
 }
 
 /**
- * Supabase email-confirmation callback. Exchanges the `code` for a session,
- * reconciles the business profile, then routes business owners to the dashboard
- * (or the safe `next` path) and everyone else to the public experience.
+ * Supabase email-confirmation / recovery callback. Exchanges the `code` for a
+ * session, then routes by merchant membership (the authorization source):
+ *   - active merchant member → the safe `next` path (default `/business`)
+ *   - authenticated non-member → merchant onboarding
+ *
+ * Creating the merchant happens on the onboarding page (never here), so callback
+ * retries can never create duplicate merchant accounts.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
@@ -36,7 +40,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
   }
 
-  const supabase = await createClient();
+  const supabase = await createTypedClient();
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
@@ -50,13 +54,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=no_session`);
   }
 
-  // Ensure/promote the business profile (profiles is the source of truth).
-  const isOwner = await reconcileBusinessOwnerOnLogin(supabase, user);
-
-  if (isOwner) {
+  if (await isActiveMerchantMember(supabase, user.id)) {
     return NextResponse.redirect(`${origin}${next}`);
   }
 
-  // Customers (e.g. mobile-created accounts) go to the public experience.
-  return NextResponse.redirect(`${origin}/`);
+  // Authenticated but no merchant yet → self-serve onboarding.
+  return NextResponse.redirect(`${origin}/business/onboarding`);
 }

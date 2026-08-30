@@ -4,12 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/client";
-import {
-  BUSINESS_ACCOUNT_TYPE,
-  resolveBusinessOwner,
-  upsertBusinessProfileFromMetadata,
-} from "@/lib/auth/business-profile";
+import { createTypedClient } from "@/lib/supabase/client";
+import { isActiveMerchantMember } from "@/lib/auth/merchant";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -17,23 +13,20 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [businessName, setBusinessName] = useState("");
-  const [businessAddress, setBusinessAddress] = useState("");
-  const [businessPhone, setBusinessPhone] = useState("");
-  const [businessWebsite, setBusinessWebsite] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // An already-signed-in business owner should go straight to their dashboard.
+  // An already-signed-in merchant member should go straight to their dashboard.
   useEffect(() => {
-    const supabase = createClient();
+    const supabase = createTypedClient();
     let cancelled = false;
     void (async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (cancelled || !user) return;
-      if (await resolveBusinessOwner(supabase, user)) {
+      if (await isActiveMerchantMember(supabase, user.id)) {
         if (!cancelled) router.replace("/business");
       }
     })();
@@ -49,21 +42,21 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
+      const supabase = createTypedClient();
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // After confirming their email, business owners return through our
-          // auth callback, which lands them on the dashboard.
+          // After confirming their email, the callback routes them into
+          // merchant onboarding (or the dashboard if they already have one).
           emailRedirectTo: `${window.location.origin}/auth/callback?next=/business`,
+          // Only safe, non-authorization data. `display_name` is consumed by the
+          // `handle_new_user` trigger; `pending_business_name` just pre-fills the
+          // onboarding form. NO account-type / role / merchant claims here — the
+          // database never trusts metadata for authorization.
           data: {
-            full_name: fullName.trim(),
-            account_type: BUSINESS_ACCOUNT_TYPE,
-            business_name: businessName.trim(),
-            business_address: businessAddress.trim(),
-            business_phone: businessPhone.trim(),
-            business_website: businessWebsite.trim(),
+            display_name: fullName.trim(),
+            pending_business_name: businessName.trim(),
           },
         },
       });
@@ -73,28 +66,18 @@ export default function SignupPage() {
         return;
       }
 
-      // When email confirmation is disabled, sign-up returns an active session.
-      // Write the business profile now (authoritatively, so a default
-      // 'customer' row gets promoted) and head straight to the dashboard.
+      // When email confirmation is disabled, sign-up returns an active session;
+      // send them to onboarding to create their merchant account.
       if (data.session && data.user) {
-        const { error: profileError } = await upsertBusinessProfileFromMetadata(
-          supabase,
-          data.user,
-        );
-        if (profileError) {
-          setError(profileError.message);
-          return;
-        }
-
-        router.replace("/business");
+        router.replace("/business/onboarding");
         router.refresh();
         return;
       }
 
-      // Otherwise confirmation is required; the profile is reconciled when the
-      // user returns through /auth/callback after confirming.
+      // Otherwise confirmation is required; onboarding happens after they return
+      // through /auth/callback.
       setSuccess(
-        "Check your email to confirm your account. After confirming, you'll be redirected to your business dashboard.",
+        "Check your email to confirm your account. After confirming, you'll set up your business.",
       );
     } catch (err) {
       setError(
@@ -116,9 +99,9 @@ export default function SignupPage() {
         List your business on Lokala
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Lokala web accounts are for businesses. Create yours to manage your
-        business, connect payments, and publish gift certificates. Shopping for
-        deals? Customers browse and buy in the Lokala mobile app.
+        Create an account to manage your business on Lokala. After you confirm
+        your email, you&apos;ll set up your business profile. Shopping for local
+        deals? Customers browse and pay in the Lokala mobile app.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
@@ -185,60 +168,11 @@ export default function SignupPage() {
             onChange={(e) => setBusinessName(e.target.value)}
             className={fieldClass}
           />
+          <p className="text-xs text-muted-foreground">
+            You can add address, phone, and other details when you set up your
+            business after confirming your email.
+          </p>
         </div>
-
-        <details className="rounded-lg border border-input bg-background/50 px-3 py-2">
-          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
-            Add business details (optional)
-          </summary>
-          <div className="mt-3 flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="businessAddress" className="text-sm font-medium">
-                Business address
-              </label>
-              <input
-                id="businessAddress"
-                name="businessAddress"
-                type="text"
-                autoComplete="street-address"
-                value={businessAddress}
-                onChange={(e) => setBusinessAddress(e.target.value)}
-                className={fieldClass}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="businessPhone" className="text-sm font-medium">
-                Business phone
-              </label>
-              <input
-                id="businessPhone"
-                name="businessPhone"
-                type="tel"
-                autoComplete="tel"
-                value={businessPhone}
-                onChange={(e) => setBusinessPhone(e.target.value)}
-                className={fieldClass}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="businessWebsite" className="text-sm font-medium">
-                Business website
-              </label>
-              <input
-                id="businessWebsite"
-                name="businessWebsite"
-                type="url"
-                autoComplete="url"
-                placeholder="https://"
-                value={businessWebsite}
-                onChange={(e) => setBusinessWebsite(e.target.value)}
-                className={fieldClass}
-              />
-            </div>
-          </div>
-        </details>
 
         {error ? (
           <p

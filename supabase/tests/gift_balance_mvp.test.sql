@@ -6,7 +6,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(24);
+select plan(29);
 
 -- Deterministic fixture UUIDs (session-local helpers only; no tests schema).
 create function pg_temp.uid(p_label text)
@@ -163,12 +163,16 @@ values
   (pg_temp.uid('merchant_b'), 'Merchant B', 'active', pg_temp.uid('owner_b')),
   (pg_temp.uid('merchant_suspended'), 'Suspended Co', 'suspended', pg_temp.uid('owner_a'));
 
+-- One active owner membership per user (enforced by
+-- merchant_members_one_active_owner_per_user): owner_a owns merchant_a, so on
+-- the suspended merchant owner_a is a non-owner member. This keeps the
+-- suspended-merchant fixture (used only by test 17) without violating the rule.
 insert into public.merchant_members (merchant_account_id, user_id, role, status)
 values
   (pg_temp.uid('merchant_a'), pg_temp.uid('owner_a'), 'owner', 'active'),
   (pg_temp.uid('merchant_a'), pg_temp.uid('staff_a'), 'staff', 'active'),
   (pg_temp.uid('merchant_b'), pg_temp.uid('owner_b'), 'owner', 'active'),
-  (pg_temp.uid('merchant_suspended'), pg_temp.uid('owner_a'), 'owner', 'active');
+  (pg_temp.uid('merchant_suspended'), pg_temp.uid('owner_a'), 'admin', 'active');
 
 insert into public.payment_hubs (id, merchant_account_id, public_code, status)
 values
@@ -762,6 +766,121 @@ end $$;
 select ok(
   current_setting('lokala_test.create_rollback_ok')::boolean,
   '24: create_merchant_account rolls back on invalid display_name'
+);
+
+-- Fresh user for onboarding idempotency + one-active-owner rule.
+-- handle_new_user provisions the profile + USD wallet on insert.
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  is_sso_user,
+  is_anonymous
+) values (
+  pg_temp.uid('owner_c'),
+  '00000000-0000-0000-0000-000000000000',
+  'authenticated',
+  'authenticated',
+  'owner_c@example.test',
+  extensions.crypt('password', extensions.gen_salt('bf')),
+  timezone('utc', now()),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"display_name":"Owner C"}'::jsonb,
+  timezone('utc', now()),
+  timezone('utc', now()),
+  false,
+  false
+);
+
+-- 25. Calling create_merchant_account twice returns the same merchant.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('owner_c')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+declare
+  r1 jsonb;
+  r2 jsonb;
+begin
+  r1 := public.create_merchant_account('Owner C Cafe', 'Owner C LLC');
+  r2 := public.create_merchant_account('Different Name Ignored');
+  perform set_config(
+    'lokala_test.onboarding_idem',
+    (
+      (r1 ->> 'merchant_account_id') = (r2 ->> 'merchant_account_id')
+      and coalesce((r1 ->> 'idempotent')::boolean, false) = false
+      and (r2 ->> 'idempotent')::boolean = true
+      and (r2 ->> 'display_name') = 'Owner C Cafe'
+    )::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.onboarding_idem')::boolean,
+  '25: create_merchant_account is idempotent and returns the same merchant'
+);
+
+-- 26. Only one merchant account was created for the user.
+select is(
+  (
+    select count(*)::int
+    from public.merchant_accounts
+    where created_by = pg_temp.uid('owner_c')
+  ),
+  1,
+  '26: repeated onboarding creates only one merchant account'
+);
+
+-- 27. Only one active owner membership exists for the user.
+select is(
+  (
+    select count(*)::int
+    from public.merchant_members
+    where user_id = pg_temp.uid('owner_c')
+      and role = 'owner'
+      and status = 'active'
+  ),
+  1,
+  '27: repeated onboarding creates only one active owner membership'
+);
+
+-- 28. The partial unique index rejects a second active owner membership.
+insert into public.merchant_accounts (id, display_name, status, created_by)
+values (pg_temp.uid('merchant_c2'), 'Owner C Second', 'active', pg_temp.uid('owner_c'));
+
+select throws_ok(
+  $$insert into public.merchant_members (merchant_account_id, user_id, role, status)
+    values (pg_temp.uid('merchant_c2'), pg_temp.uid('owner_c'), 'owner', 'active')$$,
+  '23505',
+  null,
+  '28: unique index rejects a second active owner membership'
+);
+
+-- 29. A user may still be a non-owner member of another merchant.
+insert into public.merchant_members (merchant_account_id, user_id, role, status)
+values (pg_temp.uid('merchant_c2'), pg_temp.uid('owner_c'), 'staff', 'active');
+
+select ok(
+  exists (
+    select 1
+    from public.merchant_members
+    where merchant_account_id = pg_temp.uid('merchant_c2')
+      and user_id = pg_temp.uid('owner_c')
+      and role = 'staff'
+      and status = 'active'
+  ),
+  '29: a user may hold a non-owner membership in another merchant'
 );
 
 select * from finish();
