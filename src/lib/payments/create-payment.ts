@@ -1,28 +1,28 @@
 import type Stripe from "stripe";
 
-import { isPaymentsConnected } from "@/lib/auth/business-context";
-import { connectedAccountUsableInMode } from "@/lib/stripe/connect-readiness";
-import { getStripe, isStripePlatformLive } from "@/lib/stripe/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getStripe } from "../stripe/server.ts";
+import { createAdminClient } from "../supabase/admin.ts";
 import {
   type FeeBreakdown,
   type PaymentKind,
   type PaymentMethod,
   quotePayment,
-} from "@/lib/payments/fees";
+} from "./fees.ts";
 
 /**
  * Durable payment creation. SERVER-ONLY.
  *
- * The single path that money starts on, for both payment kinds. The ordering is
- * deliberate and is the whole point of the service:
+ * `merchant_qr_payment` (a direct destination charge to a business at the
+ * point of redemption) is retired: it conflicts with the gift-balance wallet
+ * architecture, where redemption debits a wallet rather than charging a card.
+ * `createPayment` now only ever creates a `gift_certificate_purchase`; a
+ * `merchant_qr_payment` request is refused before any resolution, DB write, or
+ * Stripe call. The ordering below is what remains load-bearing:
  *
- *   1. resolve and validate the merchant (QR payments) BEFORE touching Stripe,
- *      so a resolution failure can never fall back to charging the platform;
- *   2. compute every fee on the server from the subtotal and tip alone;
- *   3. write the pending ledger row BEFORE Stripe, so a charge can never exist
+ *   1. compute every fee on the server from the subtotal and tip alone;
+ *   2. write the pending ledger row BEFORE Stripe, so a charge can never exist
  *      that Lokala has no record of;
- *   4. create exactly one PaymentIntent, keyed off client_request_id.
+ *   3. create exactly one PaymentIntent, keyed off client_request_id.
  *
  * Idempotency has two independent layers. `payment_transactions
  * .client_request_id` is UNIQUE, so N concurrent requests collapse to one row.
@@ -30,10 +30,8 @@ import {
  * update loses a race, Stripe returns the SAME PaymentIntent instead of
  * creating a second one. A retry can therefore never double-charge.
  *
- * Uses the service-role client because `business_qr_codes` and
- * `business_payment_accounts` intentionally have no anon SELECT policy, and
- * `payment_transactions` intentionally has no client write policy. No internal
- * identifier resolved here (owner id, connected account id) is ever returned.
+ * Uses the service-role client because `payment_transactions` intentionally
+ * has no client write policy.
  */
 
 export type CreatePaymentFailure =
@@ -47,7 +45,8 @@ export type CreatePaymentFailure =
   | "request_mismatch"
   | "stripe_unavailable"
   | "db_error"
-  | "server_error";
+  | "server_error"
+  | "retired_kind";
 
 /** Server-side diagnostic detail. Never returned to a client. */
 export type CreatePaymentDiagnostic = {
@@ -169,76 +168,12 @@ function toSession(
   };
 }
 
-/**
- * Resolve a scanned QR public_code to its merchant and connected account, and
- * confirm the merchant can actually accept a charge. Uses the same readiness
- * definition as the rest of the app.
- */
-async function resolveMerchantTarget(
-  publicCode: string,
-): Promise<{ ok: true; target: MerchantTarget } | { ok: false }> {
-  const admin = createAdminClient();
-
-  const { data: qr, error: qrError } = await admin
-    .from("business_qr_codes")
-    .select("business_owner_id")
-    .eq("public_code", publicCode)
-    .eq("is_active", true)
-    .maybeSingle<{ business_owner_id: string }>();
-
-  if (qrError || !qr?.business_owner_id) {
-    return { ok: false };
-  }
-
-  const ownerId = qr.business_owner_id;
-
-  const { data: account, error: accountError } = await admin
-    .from("business_payment_accounts")
-    .select(
-      "stripe_account_id, onboarding_status, charges_enabled, payouts_enabled, livemode",
-    )
-    .eq("owner_id", ownerId)
-    .maybeSingle<{
-      stripe_account_id: string | null;
-      onboarding_status: string | null;
-      charges_enabled: boolean | null;
-      payouts_enabled: boolean | null;
-      livemode: boolean | null;
-    }>();
-
-  let platformLive: boolean;
-  try {
-    platformLive = isStripePlatformLive();
-  } catch {
-    return { ok: false };
-  }
-
-  if (
-    accountError ||
-    !account?.stripe_account_id ||
-    !isPaymentsConnected(account) ||
-    !connectedAccountUsableInMode(account.livemode, platformLive)
-  ) {
-    return { ok: false };
-  }
-
-  // Snapshot the merchant name: a customer cannot SELECT the merchant's
-  // profiles row under RLS, so a receipt must not depend on that join.
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("business_name")
-    .eq("id", ownerId)
-    .maybeSingle<{ business_name: string | null }>();
-
-  return {
-    ok: true,
-    target: {
-      businessOwnerId: ownerId,
-      connectedAccountId: account.stripe_account_id,
-      businessName: profile?.business_name?.trim() || "Local business",
-    },
-  };
-}
+// Merchant resolution (QR public_code -> connected account) lived here for
+// merchant_qr_payment. Retired along with that kind -- see the module
+// docstring. `MerchantTarget` and `target` below stay (always null) because
+// isMismatchedReplay and the payment_transactions row shape still key off
+// them; a live business_owner_id on a row can only mean a pre-retirement
+// merchant_qr_payment, which a gift_certificate_purchase replay must not match.
 
 /** True when the replayed request does not describe the same payment. */
 function isMismatchedReplay(
@@ -267,6 +202,17 @@ export async function createPayment(
   if (kind !== "merchant_qr_payment" && kind !== "gift_certificate_purchase") {
     return fail(400, "invalid_request", { kind });
   }
+
+  // Retired: direct card-at-the-counter destination charges conflict with the
+  // gift-balance wallet architecture. Refuse before any resolution, DB write,
+  // or Stripe call -- this is the only place a new merchant_qr_payment attempt
+  // can be created, so blocking it here closes every caller at once, including
+  // a stale client that still constructs this request by hand. Historical rows
+  // (refunds, receipts) are untouched; only new creation is retired.
+  if (kind === "merchant_qr_payment") {
+    return fail(410, "retired_kind", { kind });
+  }
+
   if (typeof clientRequestId !== "string" || !UUID_RE.test(clientRequestId)) {
     return fail(400, "invalid_client_request_id");
   }
@@ -292,20 +238,11 @@ export async function createPayment(
     return fail(400, "invalid_recipient");
   }
 
-  // Merchant resolution happens BEFORE Stripe, so we never charge without a
-  // confirmed, payment-ready destination.
-  let target: MerchantTarget | null = null;
-  if (kind === "merchant_qr_payment") {
-    const publicCode = input.qrPublicCode?.trim() ?? "";
-    if (!publicCode) {
-      return fail(400, "invalid_request", { reason: "missing qrPublicCode" });
-    }
-    const resolved = await resolveMerchantTarget(publicCode);
-    if (!resolved.ok) {
-      return fail(404, "merchant_unavailable", { publicCode });
-    }
-    target = resolved.target;
-  }
+  // merchant_qr_payment is retired above, so `kind` is always
+  // gift_certificate_purchase here and there is never a merchant destination
+  // to resolve. `target` stays typed as MerchantTarget | null (rather than
+  // dropped) because isMismatchedReplay and the insert below still key off it.
+  const target: MerchantTarget | null = null;
 
   const admin = createAdminClient();
 
@@ -317,10 +254,9 @@ export async function createPayment(
       client_request_id: clientRequestId,
       kind,
       customer_id: customerId,
-      business_owner_id: target?.businessOwnerId ?? null,
-      qr_public_code:
-        kind === "merchant_qr_payment" ? (input.qrPublicCode?.trim() ?? null) : null,
-      business_name_snapshot: target?.businessName ?? null,
+      business_owner_id: null,
+      qr_public_code: null,
+      business_name_snapshot: null,
       subtotal_cents: quote.subtotalCents,
       tip_cents: quote.tipCents,
       credit_cents: 0,
@@ -414,15 +350,10 @@ export async function createPayment(
       },
     };
 
-    if (target) {
-      // Destination charge: funds route to the merchant's connected account and
-      // Lokala retains both fee sides as the Connect application fee.
-      params.transfer_data = { destination: target.connectedAccountId };
-      params.application_fee_amount = quote.applicationFeeCents;
-    }
     // Gift purchases are PLATFORM charges with no connected account, so no
-    // application_fee_amount is sent (Stripe rejects it without a destination).
-    // Lokala's cut is still recorded on the ledger.
+    // transfer_data/application_fee_amount is sent (Stripe rejects a fee
+    // without a destination). Lokala's cut is still recorded on the ledger.
+    // The destination-charge branch (merchant_qr_payment) is retired above.
 
     intent = await stripe.paymentIntents.create(params, {
       idempotencyKey: stripeIdempotencyKey(clientRequestId),
