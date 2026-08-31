@@ -1,5 +1,10 @@
 import { generateRawClaimToken, hashClaimToken } from "./claim-token.ts";
 import { sendGiftClaimEmailViaResend, type GiftClaimEmailSender } from "./gift-claim-email.ts";
+import {
+  sendGiftSentConfirmationEmailViaResend,
+  type GiftSentConfirmationSender,
+} from "./gift-purchaser-email.ts";
+import { getUserEmailById, type UserEmailLookupAdmin } from "./user-email.ts";
 
 /**
  * Balance-purchase branch of the platform PaymentIntent webhook. SERVER-ONLY.
@@ -40,6 +45,15 @@ import { sendGiftClaimEmailViaResend, type GiftClaimEmailSender } from "./gift-c
  * retry the webhook: the ledger entry and gift_claims row already committed
  * by the time the email is attempted, so a retry could only ever duplicate
  * the send, not fix anything.
+ *
+ * A second, separate email goes to the PURCHASER for a gift (never for a
+ * self-top-up): confirmation that the gift was sent, with the recipient
+ * address, amount, and the live claim window read from
+ * service_get_gift_claim_expiry_days (not the display-only constant
+ * gift-claim-email.ts mirrors for the recipient's email). Looked up and sent
+ * in its own try/catch, independent of the recipient email's -- one failing
+ * must never suppress or be conflated with the other, and neither may fail
+ * or retry the webhook.
  */
 
 export const BALANCE_PURCHASE_WEBHOOK_LEASE_SECONDS = 300;
@@ -67,9 +81,14 @@ type RpcResult = PromiseLike<{
 
 type UpdateResult = PromiseLike<{ error: { message: string } | null }>;
 
+type SelectResult = PromiseLike<{
+  data: Record<string, unknown> | null;
+  error: { message: string } | null;
+}>;
+
 /** The database surface this module needs. The real Supabase admin client
  * (createAdminClient()) already satisfies this shape; tests inject a fake. */
-export type BalancePurchaseWebhookAdmin = {
+export type BalancePurchaseWebhookAdmin = UserEmailLookupAdmin & {
   rpc: (fn: string, args?: Record<string, unknown>) => RpcResult;
   from: (table: string) => {
     update: (patch: Record<string, unknown>) => {
@@ -77,8 +96,60 @@ export type BalancePurchaseWebhookAdmin = {
         in: (column: string, values: string[]) => UpdateResult;
       };
     };
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        maybeSingle: () => SelectResult;
+      };
+    };
   };
 };
+
+/** Structurally matches the real Supabase admin client, but with `.from()`
+ * typed loosely (return `any`) rather than assignable directly. Checking the
+ * real client's `.select()` builder against BalancePurchaseWebhookAdmin's
+ * shape directly hits TS2589 (excessively deep instantiation) --
+ * supabase-js's PostgrestFilterBuilder generics for `.select()` are
+ * considerably deeper than the `.update().eq().in()` chain this module also
+ * uses, which does not have this problem on its own. Routing through this
+ * adapter keeps the call site (route.ts) using the real client with no
+ * unsafe cast, while only this function's own explicit return-type
+ * annotation is checked against BalancePurchaseWebhookAdmin. */
+export function toBalancePurchaseWebhookAdmin(raw: {
+  rpc: BalancePurchaseWebhookAdmin["rpc"];
+  from: (table: string) => any;
+  auth: UserEmailLookupAdmin["auth"];
+}): BalancePurchaseWebhookAdmin {
+  return {
+    rpc: raw.rpc,
+    from(table) {
+      return {
+        update(patch) {
+          return {
+            eq(column, value) {
+              return {
+                in: (statusColumn: string, allowedValues: string[]) =>
+                  raw.from(table).update(patch).eq(column, value).in(statusColumn, allowedValues),
+              };
+            },
+          };
+        },
+        select(columns) {
+          return {
+            eq(column, value) {
+              return {
+                async maybeSingle() {
+                  const { data, error } = await raw.from(table).select(columns).eq(column, value).maybeSingle();
+                  return { data: (data as Record<string, unknown> | null) ?? null, error };
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+    auth: raw.auth,
+  };
+}
 
 type ClaimRow = { claim_status?: string; attempt_count?: number };
 
@@ -139,6 +210,30 @@ async function completeBalancePurchaseWebhookEvent(
     p_error: success ? null : (errorMessage ?? "processing_failed").slice(0, 500),
   });
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Purchaser "gift sent" confirmation lookups.
+// ---------------------------------------------------------------------------
+
+async function getBalancePurchasePurchaserId(
+  admin: BalancePurchaseWebhookAdmin,
+  balancePurchaseId: string,
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from("balance_purchases")
+    .select("purchaser_user_id")
+    .eq("id", balancePurchaseId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const value = data.purchaser_user_id;
+  return typeof value === "string" ? value : null;
+}
+
+async function getGiftClaimExpiryDays(admin: BalancePurchaseWebhookAdmin): Promise<number | null> {
+  const { data, error } = await admin.rpc("service_get_gift_claim_expiry_days");
+  if (error) return null;
+  return typeof data === "number" ? data : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,9 +319,13 @@ export async function handleBalancePurchasePaymentIntentEvent(params: {
   targetStatus: BalancePurchaseTargetStatus;
   /** Defaults to the real Resend-backed sender; tests inject a fake. */
   sendGiftClaimEmail?: GiftClaimEmailSender;
+  /** Defaults to the real Resend-backed sender; tests inject a fake. */
+  sendGiftSentConfirmation?: GiftSentConfirmationSender;
 }): Promise<Response> {
   const { admin, event, intent, targetStatus } = params;
   const sendGiftClaimEmail = params.sendGiftClaimEmail ?? sendGiftClaimEmailViaResend;
+  const sendGiftSentConfirmation =
+    params.sendGiftSentConfirmation ?? sendGiftSentConfirmationEmailViaResend;
 
   let claim: { status: string };
   try {
@@ -298,6 +397,34 @@ export async function handleBalancePurchasePaymentIntentEvent(params: {
         });
       } catch (emailErr) {
         logBalancePurchaseWebhookFailure("gift_claim_email_failed", emailErr);
+      }
+
+      // Separate try/catch from the recipient's claim email above -- one
+      // failing must never suppress or be conflated with the other.
+      try {
+        const purchaserUserId = await getBalancePurchasePurchaserId(admin, balancePurchaseId);
+        const purchaserEmail = purchaserUserId
+          ? await getUserEmailById(admin, purchaserUserId)
+          : null;
+        const expiryDays = await getGiftClaimExpiryDays(admin);
+
+        if (purchaserEmail && expiryDays !== null) {
+          const subtotalCents = Number(intent.metadata.subtotal_cents ?? "0");
+          await sendGiftSentConfirmation({
+            to: purchaserEmail,
+            recipientEmail,
+            amountCents: Number.isFinite(subtotalCents) ? subtotalCents : 0,
+            currency: "usd",
+            expiryDays,
+          });
+        } else {
+          logBalancePurchaseWebhookFailure("gift_sent_confirmation_missing_data", {
+            hasPurchaserEmail: Boolean(purchaserEmail),
+            expiryDays,
+          });
+        }
+      } catch (confirmationErr) {
+        logBalancePurchaseWebhookFailure("gift_sent_confirmation_failed", confirmationErr);
       }
     }
 

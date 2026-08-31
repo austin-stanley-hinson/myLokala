@@ -724,6 +724,48 @@ export type Database = {
           },
         ]
       }
+      stripe_webhook_events: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          event_type: string
+          id: string
+          livemode: boolean
+          locked_at: string | null
+          payment_transaction_id: string | null
+          process_error: string | null
+          processed_at: string | null
+          stripe_event_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          event_type: string
+          id?: string
+          livemode: boolean
+          locked_at?: string | null
+          payment_transaction_id?: string | null
+          process_error?: string | null
+          processed_at?: string | null
+          stripe_event_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          event_type?: string
+          id?: string
+          livemode?: boolean
+          locked_at?: string | null
+          payment_transaction_id?: string | null
+          process_error?: string | null
+          processed_at?: string | null
+          stripe_event_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           balance_cents: number
@@ -790,6 +832,19 @@ export type Database = {
       }
     }
     Functions: {
+      claim_stripe_webhook_event: {
+        Args: {
+          p_event_type: string
+          p_lease_seconds?: number
+          p_livemode: boolean
+          p_stripe_event_id: string
+        }
+        Returns: {
+          already_processed: boolean
+          attempt_count: number
+          claimed: boolean
+        }[]
+      }
       create_merchant_account: {
         Args: {
           p_description?: string
@@ -899,6 +954,7 @@ export type Database = {
         }
         Returns: Json
       }
+      service_get_gift_claim_expiry_days: { Args: never; Returns: number }
       service_get_platform_stripe_livemode: { Args: never; Returns: boolean }
       service_get_stripe_connected_account: {
         Args: { p_livemode: boolean; p_merchant_account_id: string }

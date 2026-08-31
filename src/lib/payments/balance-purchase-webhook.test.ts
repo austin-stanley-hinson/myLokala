@@ -17,9 +17,11 @@ import { randomUUID } from "node:crypto";
 import {
   handleBalancePurchasePaymentIntentEvent,
   syncNonSucceededBalancePurchaseStatus,
+  toBalancePurchaseWebhookAdmin,
   type BalancePurchaseWebhookAdmin,
 } from "./balance-purchase-webhook.ts";
 import type { SendGiftClaimEmailInput } from "./gift-claim-email.ts";
+import type { SendGiftSentConfirmationInput } from "./gift-purchaser-email.ts";
 
 type RpcCall = { fn: string; args?: Record<string, unknown> };
 type TableRow = Record<string, unknown>;
@@ -28,6 +30,9 @@ function makeFakeAdmin(
   opts: {
     issueError?: { message: string };
     tables?: { payment_orders?: TableRow[]; balance_purchases?: TableRow[] };
+    userEmails?: Record<string, string>;
+    expiryDays?: number;
+    expiryDaysError?: { message: string };
   } = {},
 ): BalancePurchaseWebhookAdmin & {
   calls: RpcCall[];
@@ -39,6 +44,7 @@ function makeFakeAdmin(
     payment_orders: opts.tables?.payment_orders ?? [],
     balance_purchases: opts.tables?.balance_purchases ?? [],
   };
+  const userEmails = opts.userEmails ?? {};
 
   return {
     calls,
@@ -65,6 +71,11 @@ function makeFakeAdmin(
         return { data: { status: "delivered", idempotent: false }, error: null };
       }
 
+      if (fn === "service_get_gift_claim_expiry_days") {
+        if (opts.expiryDaysError) return { data: null, error: opts.expiryDaysError };
+        return { data: opts.expiryDays ?? 30, error: null };
+      }
+
       return { data: null, error: null };
     },
     from(table: string) {
@@ -88,7 +99,29 @@ function makeFakeAdmin(
             },
           };
         },
+        select(_columns: string) {
+          return {
+            eq(column: string, value: string) {
+              return {
+                async maybeSingle() {
+                  const rows = tables[table] ?? [];
+                  const row = rows.find((r) => r[column] === value);
+                  return { data: row ?? null, error: null };
+                },
+              };
+            },
+          };
+        },
       };
+    },
+    auth: {
+      admin: {
+        async getUserById(userId: string) {
+          const email = userEmails[userId];
+          if (!email) return { data: { user: null }, error: null };
+          return { data: { user: { email } }, error: null };
+        },
+      },
     },
   };
 }
@@ -101,11 +134,28 @@ function neverSendEmail(): Promise<void> {
   throw new Error("sendGiftClaimEmail should not be called for this test");
 }
 
+function neverSendGiftSentConfirmation(): Promise<void> {
+  throw new Error("sendGiftSentConfirmation should not be called for this test");
+}
+
 function fakeEmailSender(): {
   send: (input: SendGiftClaimEmailInput) => Promise<void>;
   calls: SendGiftClaimEmailInput[];
 } {
   const calls: SendGiftClaimEmailInput[] = [];
+  return {
+    calls,
+    async send(input) {
+      calls.push(input);
+    },
+  };
+}
+
+function fakeGiftSentConfirmationSender(): {
+  send: (input: SendGiftSentConfirmationInput) => Promise<void>;
+  calls: SendGiftSentConfirmationInput[];
+} {
+  const calls: SendGiftSentConfirmationInput[] = [];
   return {
     calls,
     async send(input) {
@@ -127,6 +177,7 @@ describe("handleBalancePurchasePaymentIntentEvent: exactly-once on retry", () =>
       intent,
       targetStatus: "succeeded",
       sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
     const second = await handleBalancePurchasePaymentIntentEvent({
       admin,
@@ -134,6 +185,7 @@ describe("handleBalancePurchasePaymentIntentEvent: exactly-once on retry", () =>
       intent,
       targetStatus: "succeeded",
       sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(first.status, 200);
@@ -153,6 +205,7 @@ describe("handleBalancePurchasePaymentIntentEvent: self vs gift", () => {
       intent: { id: "pi_self", metadata: { kind: "balance_purchase", balance_purchase_id: balancePurchaseId } },
       targetStatus: "succeeded",
       sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(res.status, 200);
@@ -181,6 +234,7 @@ describe("handleBalancePurchasePaymentIntentEvent: self vs gift", () => {
       },
       targetStatus: "succeeded",
       sendGiftClaimEmail: emailer.send,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(res.status, 200);
@@ -221,6 +275,7 @@ describe("handleBalancePurchasePaymentIntentEvent: gift-claim email failure neve
       sendGiftClaimEmail: async () => {
         throw new Error("Resend API error 500: simulated outage");
       },
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(res.status, 200);
@@ -252,6 +307,7 @@ describe("handleBalancePurchasePaymentIntentEvent: Part 0 status sync", () => {
       },
       targetStatus: "failed",
       sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(res.status, 200);
@@ -279,6 +335,7 @@ describe("handleBalancePurchasePaymentIntentEvent: Part 0 status sync", () => {
       },
       targetStatus: "canceled",
       sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(admin.tables.payment_orders![0]!.status, "canceled");
@@ -304,6 +361,7 @@ describe("handleBalancePurchasePaymentIntentEvent: Part 0 status sync", () => {
       },
       targetStatus: "processing",
       sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(admin.tables.payment_orders![0]!.status, "awaiting_payment");
@@ -337,6 +395,7 @@ describe("handleBalancePurchasePaymentIntentEvent: malformed metadata", () => {
       intent: { id: "pi_missing_meta", metadata: { kind: "balance_purchase" } },
       targetStatus: "succeeded",
       sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(res.status, 200);
@@ -354,11 +413,278 @@ describe("handleBalancePurchasePaymentIntentEvent: issuance failure", () => {
       intent: { id: "pi_issue_error", metadata: { kind: "balance_purchase", balance_purchase_id: randomUUID() } },
       targetStatus: "succeeded",
       sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
     });
 
     assert.equal(res.status, 500);
 
     const completeCalls = admin.calls.filter((c) => c.fn === "service_complete_stripe_webhook_event");
     assert.equal(completeCalls.at(-1)?.args?.p_success, false);
+  });
+});
+
+describe("handleBalancePurchasePaymentIntentEvent: purchaser gift-sent confirmation", () => {
+  it("sends the purchaser a confirmation with the recipient email, amount, and live expiry_days", async () => {
+    const balancePurchaseId = randomUUID();
+    const purchaserUserId = randomUUID();
+    const admin = makeFakeAdmin({
+      tables: { balance_purchases: [{ id: balancePurchaseId, purchaser_user_id: purchaserUserId }] },
+      userEmails: { [purchaserUserId]: "purchaser@example.com" },
+      expiryDays: 45,
+    });
+    const confirmation = fakeGiftSentConfirmationSender();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_gift_sent", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_gift_sent",
+        metadata: {
+          kind: "balance_purchase",
+          balance_purchase_id: balancePurchaseId,
+          recipient_email: "friend@example.com",
+          subtotal_cents: "2000",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: async () => {},
+      sendGiftSentConfirmation: confirmation.send,
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(confirmation.calls.length, 1);
+    const call = confirmation.calls[0]!;
+    assert.equal(call.to, "purchaser@example.com");
+    assert.equal(call.recipientEmail, "friend@example.com");
+    assert.equal(call.amountCents, 2000);
+    assert.equal(call.expiryDays, 45);
+  });
+
+  it("self top-up: never sends a gift-sent confirmation (no recipient, structurally never reached)", async () => {
+    const admin = makeFakeAdmin();
+    const balancePurchaseId = randomUUID();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_self_no_confirm", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_self_no_confirm",
+        metadata: { kind: "balance_purchase", balance_purchase_id: balancePurchaseId },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
+    });
+
+    assert.equal(res.status, 200);
+  });
+
+  it("a gift-sent confirmation failure never blocks the webhook, and does not suppress the recipient's claim email", async () => {
+    const balancePurchaseId = randomUUID();
+    const purchaserUserId = randomUUID();
+    const admin = makeFakeAdmin({
+      tables: { balance_purchases: [{ id: balancePurchaseId, purchaser_user_id: purchaserUserId }] },
+      userEmails: { [purchaserUserId]: "purchaser@example.com" },
+    });
+    const claimEmail = fakeEmailSender();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_confirm_fail", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_confirm_fail",
+        metadata: {
+          kind: "balance_purchase",
+          balance_purchase_id: balancePurchaseId,
+          recipient_email: "friend@example.com",
+          subtotal_cents: "1000",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: claimEmail.send,
+      sendGiftSentConfirmation: async () => {
+        throw new Error("Resend API error 500: simulated outage");
+      },
+    });
+
+    assert.equal(res.status, 200);
+    // The recipient's claim email, sent in its own try/catch, still went out.
+    assert.equal(claimEmail.calls.length, 1);
+    const completeCalls = admin.calls.filter((c) => c.fn === "service_complete_stripe_webhook_event");
+    assert.equal(completeCalls.at(-1)?.args?.p_success, true);
+  });
+
+  it("a recipient claim-email failure never suppresses the purchaser's gift-sent confirmation", async () => {
+    const balancePurchaseId = randomUUID();
+    const purchaserUserId = randomUUID();
+    const admin = makeFakeAdmin({
+      tables: { balance_purchases: [{ id: balancePurchaseId, purchaser_user_id: purchaserUserId }] },
+      userEmails: { [purchaserUserId]: "purchaser@example.com" },
+    });
+    const confirmation = fakeGiftSentConfirmationSender();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_claim_fail_confirm_ok", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_claim_fail_confirm_ok",
+        metadata: {
+          kind: "balance_purchase",
+          balance_purchase_id: balancePurchaseId,
+          recipient_email: "friend@example.com",
+          subtotal_cents: "1000",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: async () => {
+        throw new Error("Resend API error 500: simulated outage");
+      },
+      sendGiftSentConfirmation: confirmation.send,
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(confirmation.calls.length, 1);
+  });
+
+  it("skips the confirmation without failing the webhook when the purchaser has no email on file", async () => {
+    const balancePurchaseId = randomUUID();
+    const purchaserUserId = randomUUID();
+    const admin = makeFakeAdmin({
+      tables: { balance_purchases: [{ id: balancePurchaseId, purchaser_user_id: purchaserUserId }] },
+      // No userEmails entry for purchaserUserId -- getUserById resolves to no user.
+    });
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_no_purchaser_email", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_no_purchaser_email",
+        metadata: {
+          kind: "balance_purchase",
+          balance_purchase_id: balancePurchaseId,
+          recipient_email: "friend@example.com",
+          subtotal_cents: "1000",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: async () => {},
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
+    });
+
+    assert.equal(res.status, 200);
+  });
+});
+
+describe("toBalancePurchaseWebhookAdmin", () => {
+  it("forwards .rpc() to the raw client unchanged", async () => {
+    const rpcCalls: RpcCall[] = [];
+    const raw = {
+      async rpc(fn: string, args?: Record<string, unknown>) {
+        rpcCalls.push({ fn, args });
+        return { data: { ok: true }, error: null };
+      },
+      from: () => ({}),
+      auth: { admin: { async getUserById() { return { data: { user: null }, error: null }; } } },
+    };
+
+    const admin = toBalancePurchaseWebhookAdmin(raw);
+    await admin.rpc("some_fn", { a: 1 });
+    assert.deepEqual(rpcCalls, [{ fn: "some_fn", args: { a: 1 } }]);
+  });
+
+  it("forwards .from().update().eq().in() to the raw client", async () => {
+    const calls: unknown[] = [];
+    const raw = {
+      rpc: async () => ({ data: null, error: null }),
+      from(table: string) {
+        return {
+          update(patch: Record<string, unknown>) {
+            return {
+              eq(column: string, value: string) {
+                return {
+                  async in(statusColumn: string, allowedValues: string[]) {
+                    calls.push({ table, patch, column, value, statusColumn, allowedValues });
+                    return { error: null };
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+      auth: { admin: { async getUserById() { return { data: { user: null }, error: null }; } } },
+    };
+
+    const admin = toBalancePurchaseWebhookAdmin(raw);
+    await admin
+      .from("payment_orders")
+      .update({ status: "failed" })
+      .eq("id", "order-1")
+      .in("status", ["created", "awaiting_payment"]);
+
+    assert.deepEqual(calls, [
+      {
+        table: "payment_orders",
+        patch: { status: "failed" },
+        column: "id",
+        value: "order-1",
+        statusColumn: "status",
+        allowedValues: ["created", "awaiting_payment"],
+      },
+    ]);
+  });
+
+  it("forwards .from().select().eq().maybeSingle() to the raw client, reshaping its result", async () => {
+    const raw = {
+      rpc: async () => ({ data: null, error: null }),
+      from(table: string) {
+        return {
+          select(columns: string) {
+            return {
+              eq(column: string, value: string) {
+                return {
+                  async maybeSingle() {
+                    assert.equal(table, "balance_purchases");
+                    assert.equal(columns, "purchaser_user_id");
+                    assert.equal(column, "id");
+                    assert.equal(value, "purchase-1");
+                    return { data: { purchaser_user_id: "user-1" }, error: null };
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+      auth: { admin: { async getUserById() { return { data: { user: null }, error: null }; } } },
+    };
+
+    const admin = toBalancePurchaseWebhookAdmin(raw);
+    const { data, error } = await admin
+      .from("balance_purchases")
+      .select("purchaser_user_id")
+      .eq("id", "purchase-1")
+      .maybeSingle();
+
+    assert.deepEqual(data, { purchaser_user_id: "user-1" });
+    assert.equal(error, null);
+  });
+
+  it("passes auth through unchanged", async () => {
+    const raw = {
+      rpc: async () => ({ data: null, error: null }),
+      from: () => ({}),
+      auth: {
+        admin: {
+          async getUserById(userId: string) {
+            return { data: { user: { email: `${userId}@example.com` } }, error: null };
+          },
+        },
+      },
+    };
+
+    const admin = toBalancePurchaseWebhookAdmin(raw);
+    const result = await admin.auth.admin.getUserById("user-1");
+    assert.equal(result.data?.user?.email, "user-1@example.com");
   });
 });

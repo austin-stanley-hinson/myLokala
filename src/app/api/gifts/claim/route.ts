@@ -1,5 +1,9 @@
 import { resolveApiUserId } from "@/lib/auth/api-user";
 import { hashClaimToken } from "@/lib/payments/claim-token";
+import {
+  notifyPurchaserOfGiftClaim,
+  toGiftClaimConfirmationAdmin,
+} from "@/lib/payments/gift-claim-confirmation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -94,6 +98,20 @@ export async function POST(req: Request) {
     return fail("server_error", 500);
   }
 
-  const result = data as { status?: string; idempotent?: boolean } | null;
-  return json({ status: result?.status ?? "claimed", idempotent: Boolean(result?.idempotent) });
+  const result = data as
+    | { status?: string; balance_purchase_id?: string; idempotent?: boolean }
+    | null;
+  const idempotent = Boolean(result?.idempotent);
+
+  // Best-effort only -- the claim itself already committed above. Never
+  // allowed to fail or delay this response.
+  if (result?.balance_purchase_id) {
+    await notifyPurchaserOfGiftClaim(toGiftClaimConfirmationAdmin(admin), {
+      balancePurchaseId: result.balance_purchase_id,
+      claimantUserId: userId,
+      idempotent,
+    });
+  }
+
+  return json({ status: result?.status ?? "claimed", idempotent });
 }

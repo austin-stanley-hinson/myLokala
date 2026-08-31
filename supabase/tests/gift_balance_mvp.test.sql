@@ -6,7 +6,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(66);
+select plan(69);
 
 -- Deterministic fixture UUIDs (session-local helpers only; no tests schema).
 create function pg_temp.uid(p_label text)
@@ -1833,10 +1833,23 @@ select ok(
 
 select ok(
   (
+    select
+      jsonb_array_length(r -> 'expired_rows') = 1
+      and (r -> 'expired_rows' -> 0 ->> 'purchaser_user_id')::uuid = pg_temp.uid('gift_purchaser')
+      and (r -> 'expired_rows' -> 0 ->> 'recipient_email') = 'past@example.test'
+      and (r -> 'expired_rows' -> 0 ->> 'amount_cents')::int = 3000
+      and (r -> 'expired_rows' -> 0 ? 'id')
+    from (select current_setting('lokala_test.expire_first_run')::jsonb as r) as t
+  ),
+  '61: expired_rows carries the reversed claim''s id, purchaser, recipient email, and amount'
+);
+
+select ok(
+  (
     select status from app_private.gift_claims
     where balance_purchase_id = current_setting('lokala_test.expire_current_purchase_id')::uuid
   ) = 'pending',
-  '61: expire_pending_gift_claims does not touch an in-window pending claim'
+  '62: expire_pending_gift_claims does not touch an in-window pending claim'
 );
 
 do $$
@@ -1851,8 +1864,9 @@ select ok(
   (current_setting('lokala_test.expire_second_run')::jsonb ->> 'expired_count')::int = 0
   and (
     select balance_cents from public.wallets where user_id = pg_temp.uid('gift_purchaser')
-  ) = 3000,
-  '62: repeating expire_pending_gift_claims is idempotent and does not double-credit'
+  ) = 3000
+  and jsonb_array_length(current_setting('lokala_test.expire_second_run')::jsonb -> 'expired_rows') = 0,
+  '63: repeating expire_pending_gift_claims is idempotent, does not double-credit, and returns no expired_rows'
 );
 
 select ok(
@@ -1864,10 +1878,10 @@ select ok(
     group by t.id, e.currency
     having sum(e.amount_cents) <> 0
   ),
-  '63: posted ledger transactions still balance to zero after gift claim and expiry activity'
+  '64: posted ledger transactions still balance to zero after gift claim and expiry activity'
 );
 
--- 64-66. public.preview_gift_claim (unauthenticated-safe claim preview)
+-- 65-67. public.preview_gift_claim (unauthenticated-safe claim preview)
 do $$
 declare
   v_purchase_id uuid;
@@ -1884,13 +1898,13 @@ set local role anon;
 
 select ok(
   (public.preview_gift_claim(current_setting('lokala_test.preview_hash')) ->> 'found')::boolean,
-  '64: anon can call preview_gift_claim (grant works, unlike the service_* wrappers)'
+  '65: anon can call preview_gift_claim (grant works, unlike the service_* wrappers)'
 );
 
 select is(
   public.preview_gift_claim('not-a-real-hash') ->> 'found',
   'false',
-  '65: preview_gift_claim reports not-found for an unknown hash, without erroring'
+  '66: preview_gift_claim reports not-found for an unknown hash, without erroring'
 );
 
 select ok(
@@ -1904,7 +1918,27 @@ select ok(
       and not (r ? 'recipient_email_normalized')
     from public.preview_gift_claim(current_setting('lokala_test.preview_hash')) as r
   ),
-  '66: preview_gift_claim exposes only status/amount/currency -- no ids, no hash, no recipient PII'
+  '67: preview_gift_claim exposes only status/amount/currency -- no ids, no hash, no recipient PII'
+);
+
+reset role;
+
+-- 68-69. public.service_get_gift_claim_expiry_days -- the live read path the
+-- purchaser's "gift sent" confirmation email uses instead of a mirrored
+-- constant (20260901000018_gift_claim_notifications.sql).
+select is(
+  public.service_get_gift_claim_expiry_days()::text,
+  '30',
+  '68: service_get_gift_claim_expiry_days returns platform_config.expiry_days'' seeded default'
+);
+
+set local role authenticated;
+
+select throws_ok(
+  $$select public.service_get_gift_claim_expiry_days()$$,
+  '42501',
+  null,
+  '69: authenticated cannot call service_get_gift_claim_expiry_days'
 );
 
 reset role;

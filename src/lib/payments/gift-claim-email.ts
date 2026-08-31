@@ -36,7 +36,7 @@ export type SendGiftClaimEmailInput = {
 
 export type GiftClaimEmailSender = (input: SendGiftClaimEmailInput) => Promise<void>;
 
-function formatAmount(amountCents: number, currency: string): string {
+export function formatAmount(amountCents: number, currency: string): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
