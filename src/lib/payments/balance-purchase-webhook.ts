@@ -105,18 +105,26 @@ export type BalancePurchaseWebhookAdmin = UserEmailLookupAdmin & {
 };
 
 /** Structurally matches the real Supabase admin client, but with `.from()`
- * typed loosely (return `any`) rather than assignable directly. Checking the
+ * typed as returning `unknown` rather than assignable directly. Checking the
  * real client's `.select()` builder against BalancePurchaseWebhookAdmin's
  * shape directly hits TS2589 (excessively deep instantiation) --
  * supabase-js's PostgrestFilterBuilder generics for `.select()` are
  * considerably deeper than the `.update().eq().in()` chain this module also
  * uses, which does not have this problem on its own. Routing through this
  * adapter keeps the call site (route.ts) using the real client with no
- * unsafe cast, while only this function's own explicit return-type
- * annotation is checked against BalancePurchaseWebhookAdmin. */
+ * unsafe cast at the call site, while only this function's own explicit
+ * return-type annotation is checked against BalancePurchaseWebhookAdmin.
+ *
+ * `unknown` (not `any`) on the parameter type avoids the same deep
+ * assignability check at the CALL site (unknown is trivially compatible with
+ * any return type, same short-circuit `any` gave us, but still type-checked
+ * everywhere else). The two local `as` assertions below, one per shape
+ * actually used, narrow it back down where it's called -- an assertion is a
+ * much shallower check than a structural assignability comparison, so it
+ * doesn't reintroduce the instantiation-depth problem either. */
 export function toBalancePurchaseWebhookAdmin(raw: {
   rpc: BalancePurchaseWebhookAdmin["rpc"];
-  from: (table: string) => any;
+  from: (table: string) => unknown;
   auth: UserEmailLookupAdmin["auth"];
 }): BalancePurchaseWebhookAdmin {
   return {
@@ -127,8 +135,16 @@ export function toBalancePurchaseWebhookAdmin(raw: {
           return {
             eq(column, value) {
               return {
-                in: (statusColumn: string, allowedValues: string[]) =>
-                  raw.from(table).update(patch).eq(column, value).in(statusColumn, allowedValues),
+                in: (statusColumn: string, allowedValues: string[]) => {
+                  const builder = raw.from(table) as {
+                    update: (p: Record<string, unknown>) => {
+                      eq: (c: string, v: string) => {
+                        in: (sc: string, av: string[]) => UpdateResult;
+                      };
+                    };
+                  };
+                  return builder.update(patch).eq(column, value).in(statusColumn, allowedValues);
+                },
               };
             },
           };
@@ -138,7 +154,14 @@ export function toBalancePurchaseWebhookAdmin(raw: {
             eq(column, value) {
               return {
                 async maybeSingle() {
-                  const { data, error } = await raw.from(table).select(columns).eq(column, value).maybeSingle();
+                  const builder = raw.from(table) as {
+                    select: (c: string) => {
+                      eq: (c2: string, v: string) => {
+                        maybeSingle: () => SelectResult;
+                      };
+                    };
+                  };
+                  const { data, error } = await builder.select(columns).eq(column, value).maybeSingle();
                   return { data: (data as Record<string, unknown> | null) ?? null, error };
                 },
               };
