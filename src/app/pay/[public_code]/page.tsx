@@ -6,6 +6,7 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import { resolvePaymentHub } from "@/lib/merchant/setup";
 import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
 import { createTypedClient } from "@/lib/supabase/server";
+import { RedeemPanel } from "./redeem-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,15 @@ export default async function PayByQrPage({ params }: PayPageProps) {
   const { public_code } = await params;
   const hub = await loadHub(public_code);
 
+  let isAuthenticated = false;
+  if (hub && hasPublicSupabaseEnv()) {
+    const supabase = await createTypedClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    isAuthenticated = Boolean(user);
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 px-4 py-10 sm:px-6">
       <header>
@@ -63,38 +73,7 @@ export default async function PayByQrPage({ params }: PayPageProps) {
       </header>
 
       {hub ? (
-        <section className="rounded-3xl border border-lokala-border bg-white p-8 shadow-lokala-card">
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-lokala-green-dark">
-            Pay with Lokala
-          </p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-lokala-brown-dark">
-            {hub.merchantDisplayName}
-          </h1>
-          {hub.locationLabel ? (
-            <p className="mt-1 text-sm font-semibold text-lokala-muted">
-              {hub.locationLabel}
-            </p>
-          ) : (
-            <p className="mt-1 text-sm font-semibold text-lokala-muted">
-              Waterville, ME
-            </p>
-          )}
-          <p className="mt-5 text-sm leading-6 text-lokala-muted">
-            Lokala-balance payment will be enabled in the upcoming payment
-            phase. This is a valid merchant payment destination — customers will
-            scan this code in the Lokala app to pay from their gift balance.
-          </p>
-          <p className="mt-4 rounded-2xl border border-lokala-border bg-lokala-cream-light px-4 py-3 text-sm text-lokala-brown">
-            Redemption isn&apos;t live yet. No charge will be made from this
-            page.
-          </p>
-          <Link
-            href="/"
-            className="mt-6 inline-flex rounded-full border border-lokala-border bg-white px-5 py-2.5 text-sm font-bold text-lokala-brown transition hover:bg-lokala-brown-soft"
-          >
-            Back to Lokala
-          </Link>
-        </section>
+        <RedeemPanel hub={hub} initialIsAuthenticated={isAuthenticated} />
       ) : (
         <section className="rounded-3xl border border-lokala-border bg-white p-8 shadow-lokala-card">
           <h1 className="text-2xl font-extrabold text-lokala-brown-dark">

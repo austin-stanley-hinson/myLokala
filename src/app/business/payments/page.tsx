@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { Receipt } from "lucide-react";
+
 import { getBusinessContext } from "@/lib/auth/business-context";
 import { canManageMerchant } from "@/lib/auth/merchant";
 import { StripeConnectCard } from "@/components/business/stripe-connect-card";
@@ -48,6 +51,24 @@ export default async function BusinessPaymentsPage() {
       ) : null}
 
       <StripeConnectCard status={status} canManage={canManage} />
+
+      <Link
+        href="/business/payments/redemptions"
+        className="flex items-center justify-between gap-3 rounded-3xl border border-lokala-border bg-white p-6 shadow-lokala-card transition hover:bg-lokala-cream-light"
+      >
+        <div className="flex items-center gap-3">
+          <span className="inline-flex size-10 items-center justify-center rounded-2xl bg-lokala-green-light text-lokala-green-dark">
+            <Receipt className="size-5" aria-hidden />
+          </span>
+          <div>
+            <p className="font-bold text-lokala-brown-dark">Recent redemptions</p>
+            <p className="text-sm text-lokala-muted">
+              Lokala balance payments customers have made at your QR code.
+            </p>
+          </div>
+        </div>
+        <span className="text-sm font-bold text-lokala-green-dark">View all &rarr;</span>
+      </Link>
 
       <StripeFaqSection />
     </div>
