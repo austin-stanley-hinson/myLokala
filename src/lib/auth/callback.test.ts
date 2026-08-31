@@ -141,6 +141,33 @@ describe("resolveAuthCallback — code (PKCE) exchange", () => {
   });
 });
 
+describe("resolveAuthCallback — non-member with a custom next", () => {
+  it("honors an explicit non-default next (e.g. a gift-claim page) instead of onboarding", async () => {
+    const { client } = makeClient({
+      user: { id: "u-3" },
+      members: { data: null, error: null },
+    });
+    const target = await resolveAuthCallback(
+      client,
+      baseParams({ code: "auth-code", next: "/claim/abc123" }),
+    );
+    assert.equal(target, "/claim/abc123");
+    assert.ok(!target.includes("email_verified"));
+  });
+
+  it("still defaults an unrequested next to onboarding for a non-member", async () => {
+    const { client } = makeClient({
+      user: { id: "u-4" },
+      members: { data: null, error: null },
+    });
+    const target = await resolveAuthCallback(
+      client,
+      baseParams({ tokenHash: "hash", type: "signup" }),
+    );
+    assert.equal(target, VERIFIED_ONBOARDING);
+  });
+});
+
 describe("resolveAuthCallback — token_hash (OTP) verification", () => {
   it("verifies the OTP and routes a confirmed non-member to onboarding", async () => {
     const { client, calls } = makeClient({

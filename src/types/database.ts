@@ -831,6 +831,10 @@ export type Database = {
         Args: { p_merchant_account_id: string; p_roles?: string[] }
         Returns: boolean
       }
+      preview_gift_claim: {
+        Args: { p_claim_token_hash: string }
+        Returns: Json
+      }
       redeem_lokala_balance: {
         Args: {
           p_client_request_id: string
@@ -851,6 +855,10 @@ export type Database = {
           payment_hub_id: string
           public_code: string
         }[]
+      }
+      service_claim_pending_gift: {
+        Args: { p_claim_token_hash: string; p_claimant_user_id: string }
+        Returns: Json
       }
       service_claim_stripe_webhook_event: {
         Args: {
@@ -896,9 +904,21 @@ export type Database = {
         Args: { p_livemode: boolean; p_merchant_account_id: string }
         Returns: Json
       }
+      service_issue_balance_purchase: {
+        Args: {
+          p_balance_purchase_id: string
+          p_claim_token_hash?: string
+          p_recipient_email_normalized?: string
+        }
+        Returns: Json
+      }
       service_reserve_stripe_connect_account: {
         Args: { p_livemode: boolean; p_merchant_account_id: string }
         Returns: Json
+      }
+      service_rotate_gift_claim_token: {
+        Args: { p_balance_purchase_id: string; p_new_claim_token_hash: string }
+        Returns: undefined
       }
       service_sync_stripe_connected_account: {
         Args: {

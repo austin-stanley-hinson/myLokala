@@ -158,6 +158,15 @@ export async function resolveAuthCallback(
     return params.next;
   }
 
+  // A caller that requested a specific, non-default destination (e.g. a
+  // customer confirming email to finish claiming a gift) is honored as-is —
+  // this is a customer flow, not a merchant one, so onboarding would be
+  // wrong. Only the default/unrequested case falls through to self-serve
+  // merchant onboarding, exactly as before.
+  if (params.next !== DEFAULT_NEXT) {
+    return params.next;
+  }
+
   // Authenticated but no merchant yet → self-serve onboarding. The
   // `email_verified=1` flag is presentation-only (it just lets onboarding show a
   // success notice); it is never trusted for auth/authorization. It is added
