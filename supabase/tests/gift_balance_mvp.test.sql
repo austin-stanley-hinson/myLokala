@@ -6,7 +6,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(46);
+select plan(66);
 
 -- Deterministic fixture UUIDs (session-local helpers only; no tests schema).
 create function pg_temp.uid(p_label text)
@@ -1320,6 +1320,594 @@ select ok(
   current_setting('lokala_test.draft_activated')::boolean,
   '46: first location activates a draft merchant and creates a hub'
 );
+
+-- 47-51. public.service_issue_balance_purchase (the app_private.issue_balance_purchase
+-- wrapper). Fresh fixture user, isolated from every earlier test's wallet expectations.
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  is_sso_user,
+  is_anonymous
+) values (
+  pg_temp.uid('customer_wrapper'),
+  '00000000-0000-0000-0000-000000000000',
+  'authenticated',
+  'authenticated',
+  'customer_wrapper@example.test',
+  extensions.crypt('password', extensions.gen_salt('bf')),
+  timezone('utc', now()),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"display_name":"Customer Wrapper"}'::jsonb,
+  timezone('utc', now()),
+  timezone('utc', now()),
+  false,
+  false
+);
+
+do $$
+declare
+  v_id uuid;
+begin
+  v_id := pg_temp.create_self_purchase(
+    pg_temp.uid('customer_wrapper'), 1000, 100, 'wrap-1'
+  );
+  perform set_config('lokala_test.wrapper_purchase_id', v_id::text, true);
+end $$;
+
+-- 47. anon cannot execute the wrapper
+set local role anon;
+
+select throws_ok(
+  $$select public.service_issue_balance_purchase(
+    current_setting('lokala_test.wrapper_purchase_id')::uuid
+  )$$,
+  '42501',
+  null,
+  '47: anon cannot execute service_issue_balance_purchase'
+);
+
+reset role;
+
+-- 48. authenticated (even the purchaser themselves) cannot execute the wrapper
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('customer_wrapper')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claims',
+  json_build_object(
+    'sub', pg_temp.uid('customer_wrapper')::text,
+    'role', 'authenticated'
+  )::text,
+  true
+);
+
+select throws_ok(
+  $$select public.service_issue_balance_purchase(
+    current_setting('lokala_test.wrapper_purchase_id')::uuid
+  )$$,
+  '42501',
+  null,
+  '48: authenticated cannot execute service_issue_balance_purchase'
+);
+
+reset role;
+
+-- 49. service_role can use the wrapper; result matches the tested private function
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config(
+  'request.jwt.claims',
+  json_build_object('role', 'service_role')::text,
+  true
+);
+
+do $$
+declare
+  v_id uuid := current_setting('lokala_test.wrapper_purchase_id')::uuid;
+  r jsonb;
+begin
+  r := public.service_issue_balance_purchase(v_id);
+  perform set_config(
+    'lokala_test.wrapper_issue_ok',
+    (
+      (r ->> 'status') = 'delivered'
+      and (r ->> 'idempotent')::boolean = false
+      and (
+        select balance_cents from public.wallets
+        where user_id = pg_temp.uid('customer_wrapper')
+      ) = 1000
+    )::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.wrapper_issue_ok')::boolean,
+  '49: service_role issuance via the wrapper matches the private function (same ledger/wallet result)'
+);
+
+-- 50. Replaying the same issuance through the wrapper stays idempotent
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config(
+  'request.jwt.claims',
+  json_build_object('role', 'service_role')::text,
+  true
+);
+
+do $$
+declare
+  v_id uuid := current_setting('lokala_test.wrapper_purchase_id')::uuid;
+  r jsonb;
+begin
+  r := public.service_issue_balance_purchase(v_id);
+  perform set_config(
+    'lokala_test.wrapper_replay_ok',
+    (
+      (r ->> 'idempotent')::boolean = true
+      and (
+        select balance_cents from public.wallets
+        where user_id = pg_temp.uid('customer_wrapper')
+      ) = 1000
+    )::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.wrapper_replay_ok')::boolean,
+  '50: replaying issuance through the wrapper is idempotent and does not double-credit'
+);
+
+-- 51. The wrapper does not open a general write path into private financial tables
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('customer_wrapper')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claims',
+  json_build_object(
+    'sub', pg_temp.uid('customer_wrapper')::text,
+    'role', 'authenticated'
+  )::text,
+  true
+);
+
+select throws_ok(
+  $$insert into app_private.ledger_transactions (
+    transaction_type, reference_type, reference_id, idempotency_key, status
+  ) values ('wrapper_leak_check', 'wrapper_leak_check', gen_random_uuid(), 'wrapper-leak-check', 'draft')$$,
+  '42501',
+  null,
+  '51: authenticated still cannot write to app_private ledger tables'
+);
+
+reset role;
+
+-- 52-63. Gift-claim service wrappers (public.service_claim_pending_gift,
+-- public.service_rotate_gift_claim_token) and app_private.expire_pending_gift_claims.
+create function pg_temp.create_gift_purchase(
+  p_purchaser uuid,
+  p_face bigint,
+  p_fee bigint,
+  p_request text
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_order uuid;
+  v_purchase uuid;
+begin
+  insert into public.payment_orders (
+    user_id, kind, subtotal_cents, customer_fee_cents, total_cents,
+    currency, pricing_version, client_request_id, status
+  ) values (
+    p_purchaser, 'balance_purchase', p_face, p_fee, p_face + p_fee,
+    'USD', 'colin_v1', p_request, 'awaiting_payment'
+  ) returning id into v_order;
+
+  insert into public.balance_purchases (
+    purchaser_user_id, purchase_kind, recipient_user_id,
+    face_value_cents, customer_fee_cents, total_paid_cents,
+    currency, pricing_version, payment_order_id, status
+  ) values (
+    p_purchaser, 'gift', null,
+    p_face, p_fee, p_face + p_fee,
+    'USD', 'colin_v1', v_order, 'awaiting_payment'
+  ) returning id into v_purchase;
+
+  return v_purchase;
+end;
+$$;
+
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous
+) values
+  (
+    pg_temp.uid('gift_purchaser'),
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated', 'authenticated', 'gift_purchaser@example.test',
+    extensions.crypt('password', extensions.gen_salt('bf')),
+    timezone('utc', now()),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"display_name":"Gift Purchaser"}'::jsonb,
+    timezone('utc', now()), timezone('utc', now()), false, false
+  ),
+  (
+    pg_temp.uid('gift_claimant'),
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated', 'authenticated', 'gift_claimant@example.test',
+    extensions.crypt('password', extensions.gen_salt('bf')),
+    timezone('utc', now()),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"display_name":"Gift Claimant"}'::jsonb,
+    timezone('utc', now()), timezone('utc', now()), false, false
+  );
+
+-- Issue a gift via the already-tested private function, so the claim fixture
+-- below reflects real, verified issuance behavior rather than a hand-built row.
+do $$
+declare
+  v_purchase_id uuid;
+  v_hash text := encode(extensions.digest('wrapper-claim-token', 'sha256'), 'hex');
+begin
+  v_purchase_id := pg_temp.create_gift_purchase(
+    pg_temp.uid('gift_purchaser'), 2000, 175, 'gift-wrapper-1'
+  );
+  perform app_private.issue_balance_purchase(v_purchase_id, 'friend@example.test', v_hash);
+  perform set_config('lokala_test.wrapper_claim_hash', v_hash, true);
+  perform set_config('lokala_test.wrapper_gift_purchase_id', v_purchase_id::text, true);
+end $$;
+
+-- 52. anon cannot execute service_claim_pending_gift
+set local role anon;
+
+select throws_ok(
+  $$select public.service_claim_pending_gift(
+    current_setting('lokala_test.wrapper_claim_hash'),
+    gen_random_uuid()
+  )$$,
+  '42501',
+  null,
+  '52: anon cannot execute service_claim_pending_gift'
+);
+
+reset role;
+
+-- 53. authenticated cannot execute service_claim_pending_gift
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('gift_claimant')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', pg_temp.uid('gift_claimant')::text, 'role', 'authenticated')::text,
+  true
+);
+
+select throws_ok(
+  $$select public.service_claim_pending_gift(
+    current_setting('lokala_test.wrapper_claim_hash'),
+    gen_random_uuid()
+  )$$,
+  '42501',
+  null,
+  '53: authenticated cannot execute service_claim_pending_gift'
+);
+
+reset role;
+
+-- 54. anon cannot execute service_rotate_gift_claim_token
+set local role anon;
+
+select throws_ok(
+  $$select public.service_rotate_gift_claim_token(
+    current_setting('lokala_test.wrapper_gift_purchase_id')::uuid,
+    'irrelevant-new-hash'
+  )$$,
+  '42501',
+  null,
+  '54: anon cannot execute service_rotate_gift_claim_token'
+);
+
+reset role;
+
+-- 55. authenticated cannot execute service_rotate_gift_claim_token
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.uid('gift_claimant')::text, true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', pg_temp.uid('gift_claimant')::text, 'role', 'authenticated')::text,
+  true
+);
+
+select throws_ok(
+  $$select public.service_rotate_gift_claim_token(
+    current_setting('lokala_test.wrapper_gift_purchase_id')::uuid,
+    'irrelevant-new-hash'
+  )$$,
+  '42501',
+  null,
+  '55: authenticated cannot execute service_rotate_gift_claim_token'
+);
+
+reset role;
+
+-- 56-57. service_claim_pending_gift, as service_role, matches
+-- app_private.claim_pending_gift's documented behavior (status, wallet credit,
+-- idempotent replay) -- proving the wrapper is a transparent passthrough.
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+
+do $$
+declare
+  r jsonb;
+begin
+  r := public.service_claim_pending_gift(
+    current_setting('lokala_test.wrapper_claim_hash'),
+    pg_temp.uid('gift_claimant')
+  );
+  perform set_config(
+    'lokala_test.wrapper_claim_ok',
+    (
+      (r ->> 'status') = 'claimed'
+      and (r ->> 'idempotent')::boolean = false
+      and (
+        select balance_cents from public.wallets
+        where user_id = pg_temp.uid('gift_claimant')
+      ) = 2000
+    )::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.wrapper_claim_ok')::boolean,
+  '56: service_claim_pending_gift via the wrapper matches the private function (claimed, wallet credited)'
+);
+
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+
+do $$
+declare
+  r jsonb;
+begin
+  r := public.service_claim_pending_gift(
+    current_setting('lokala_test.wrapper_claim_hash'),
+    pg_temp.uid('gift_claimant')
+  );
+  perform set_config(
+    'lokala_test.wrapper_claim_replay_ok',
+    (
+      (r ->> 'idempotent')::boolean = true
+      and (
+        select balance_cents from public.wallets
+        where user_id = pg_temp.uid('gift_claimant')
+      ) = 2000
+    )::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.wrapper_claim_replay_ok')::boolean,
+  '57: replaying service_claim_pending_gift is idempotent and does not double-credit'
+);
+
+-- 58. service_rotate_gift_claim_token, as service_role, actually rotates the
+-- token: a second, still-pending gift's old hash stops working and the new
+-- hash claims it.
+do $$
+declare
+  v_purchase_id uuid;
+  v_old_hash text := encode(extensions.digest('rotate-old-token', 'sha256'), 'hex');
+begin
+  v_purchase_id := pg_temp.create_gift_purchase(
+    pg_temp.uid('gift_purchaser'), 1500, 140, 'gift-rotate-1'
+  );
+  perform app_private.issue_balance_purchase(v_purchase_id, 'other-friend@example.test', v_old_hash);
+  perform set_config('lokala_test.rotate_purchase_id', v_purchase_id::text, true);
+  perform set_config('lokala_test.rotate_old_hash', v_old_hash, true);
+end $$;
+
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+
+do $$
+declare
+  v_new_hash text := encode(extensions.digest('rotate-new-token', 'sha256'), 'hex');
+  old_hash_rejected boolean := false;
+  new_hash_claimed boolean := false;
+begin
+  perform public.service_rotate_gift_claim_token(
+    current_setting('lokala_test.rotate_purchase_id')::uuid,
+    v_new_hash
+  );
+
+  begin
+    perform public.service_claim_pending_gift(
+      current_setting('lokala_test.rotate_old_hash'),
+      pg_temp.uid('gift_claimant')
+    );
+  exception
+    when others then
+      old_hash_rejected := true;
+  end;
+
+  new_hash_claimed := (
+    (public.service_claim_pending_gift(v_new_hash, pg_temp.uid('gift_claimant')) ->> 'status') = 'claimed'
+  );
+
+  perform set_config(
+    'lokala_test.rotate_ok',
+    (old_hash_rejected and new_hash_claimed)::text,
+    true
+  );
+end $$;
+
+reset role;
+
+select ok(
+  current_setting('lokala_test.rotate_ok')::boolean,
+  '58: service_rotate_gift_claim_token rotates the hash a claim must present'
+);
+
+-- 59-62. app_private.expire_pending_gift_claims
+do $$
+declare
+  v_past_purchase uuid;
+  v_current_purchase uuid;
+  v_past_hash text := encode(extensions.digest('expire-past-token', 'sha256'), 'hex');
+  v_current_hash text := encode(extensions.digest('expire-current-token', 'sha256'), 'hex');
+begin
+  v_past_purchase := pg_temp.create_gift_purchase(
+    pg_temp.uid('gift_purchaser'), 3000, 250, 'gift-expire-past'
+  );
+  perform app_private.issue_balance_purchase(v_past_purchase, 'past@example.test', v_past_hash);
+
+  v_current_purchase := pg_temp.create_gift_purchase(
+    pg_temp.uid('gift_purchaser'), 1000, 100, 'gift-expire-current'
+  );
+  perform app_private.issue_balance_purchase(v_current_purchase, 'current@example.test', v_current_hash);
+
+  -- Backdate only the past-window claim to simulate elapsed time.
+  update app_private.gift_claims
+  set created_at = timezone('utc', now()) - interval '31 days'
+  where balance_purchase_id = v_past_purchase;
+
+  perform set_config('lokala_test.expire_past_purchase_id', v_past_purchase::text, true);
+  perform set_config('lokala_test.expire_current_purchase_id', v_current_purchase::text, true);
+end $$;
+
+-- Purchaser's wallet balance before expiry (baseline for the assertions below).
+select ok(
+  (
+    select balance_cents from public.wallets where user_id = pg_temp.uid('gift_purchaser')
+  ) = 0,
+  '59: gift purchaser wallet is untouched by issuing gifts (money sits in unclaimed_gift_liability)'
+);
+
+do $$
+declare
+  r jsonb;
+begin
+  r := app_private.expire_pending_gift_claims();
+  perform set_config('lokala_test.expire_first_run', r::text, true);
+end $$;
+
+select ok(
+  (
+    (current_setting('lokala_test.expire_first_run')::jsonb ->> 'expired_count')::int >= 1
+    and (
+      select status from app_private.gift_claims
+      where balance_purchase_id = current_setting('lokala_test.expire_past_purchase_id')::uuid
+    ) = 'expired'
+    and (
+      select balance_cents from public.wallets where user_id = pg_temp.uid('gift_purchaser')
+    ) = 3000
+  ),
+  '60: expire_pending_gift_claims reverses a past-window claim to the purchaser''s wallet'
+);
+
+select ok(
+  (
+    select status from app_private.gift_claims
+    where balance_purchase_id = current_setting('lokala_test.expire_current_purchase_id')::uuid
+  ) = 'pending',
+  '61: expire_pending_gift_claims does not touch an in-window pending claim'
+);
+
+do $$
+declare
+  r jsonb;
+begin
+  r := app_private.expire_pending_gift_claims();
+  perform set_config('lokala_test.expire_second_run', r::text, true);
+end $$;
+
+select ok(
+  (current_setting('lokala_test.expire_second_run')::jsonb ->> 'expired_count')::int = 0
+  and (
+    select balance_cents from public.wallets where user_id = pg_temp.uid('gift_purchaser')
+  ) = 3000,
+  '62: repeating expire_pending_gift_claims is idempotent and does not double-credit'
+);
+
+select ok(
+  not exists (
+    select 1
+    from app_private.ledger_transactions t
+    join app_private.ledger_entries e on e.ledger_transaction_id = t.id
+    where t.status = 'posted'
+    group by t.id, e.currency
+    having sum(e.amount_cents) <> 0
+  ),
+  '63: posted ledger transactions still balance to zero after gift claim and expiry activity'
+);
+
+-- 64-66. public.preview_gift_claim (unauthenticated-safe claim preview)
+do $$
+declare
+  v_purchase_id uuid;
+  v_hash text := encode(extensions.digest('preview-token', 'sha256'), 'hex');
+begin
+  v_purchase_id := pg_temp.create_gift_purchase(
+    pg_temp.uid('gift_purchaser'), 1200, 110, 'gift-preview-1'
+  );
+  perform app_private.issue_balance_purchase(v_purchase_id, 'preview@example.test', v_hash);
+  perform set_config('lokala_test.preview_hash', v_hash, true);
+end $$;
+
+set local role anon;
+
+select ok(
+  (public.preview_gift_claim(current_setting('lokala_test.preview_hash')) ->> 'found')::boolean,
+  '64: anon can call preview_gift_claim (grant works, unlike the service_* wrappers)'
+);
+
+select is(
+  public.preview_gift_claim('not-a-real-hash') ->> 'found',
+  'false',
+  '65: preview_gift_claim reports not-found for an unknown hash, without erroring'
+);
+
+select ok(
+  (
+    select r ->> 'status' = 'pending'
+      and (r ->> 'face_value_cents')::int = 1200
+      and (r ->> 'currency') = 'USD'
+      and not (r ? 'id')
+      and not (r ? 'balance_purchase_id')
+      and not (r ? 'claim_token_hash')
+      and not (r ? 'recipient_email_normalized')
+    from public.preview_gift_claim(current_setting('lokala_test.preview_hash')) as r
+  ),
+  '66: preview_gift_claim exposes only status/amount/currency -- no ids, no hash, no recipient PII'
+);
+
+reset role;
 
 select * from finish();
 rollback;

@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logPaymentFailure } from "@/lib/payments/http";
+import { handleBalancePurchasePaymentIntentEvent } from "@/lib/payments/balance-purchase-webhook";
 import {
   claimStripeWebhookEvent,
   markWebhookEventProcessed,
@@ -105,6 +106,19 @@ async function handlePaymentIntentEvent(params: {
   }
 
   const intent = event.data.object as Stripe.PaymentIntent;
+
+  // Balance-purchase PaymentIntents (payment_orders / balance_purchases) are
+  // a separate system from payment_transactions -- looking one up there
+  // would never match. Route them to their own handler before the legacy
+  // lookup below, which is unchanged for every other event.
+  if (intent.metadata?.kind === "balance_purchase") {
+    return handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: event.id, type: event.type, livemode: event.livemode },
+      intent: { id: intent.id, metadata: intent.metadata },
+      targetStatus,
+    });
+  }
 
   try {
     const transaction = await findTransactionForIntent(admin, intent);

@@ -1,0 +1,364 @@
+/**
+ * handleBalancePurchasePaymentIntentEvent. Run with `npm test`.
+ *
+ * A fake BalancePurchaseWebhookAdmin simulates the app_private webhook claim
+ * table (service_claim_stripe_webhook_event / service_complete_stripe_webhook_event)
+ * plus payment_orders/balance_purchases as in-memory tables, so both the
+ * "exactly once, even on retry" guarantee and Part 0's status-sync are proven
+ * against real branching logic, not asserted by inspection. Every test that
+ * reaches the gift-issuance path injects a fake email sender -- never the
+ * real Resend-backed one -- so `npm test` never makes a live network call or
+ * sends a real email.
+ */
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { randomUUID } from "node:crypto";
+
+import {
+  handleBalancePurchasePaymentIntentEvent,
+  syncNonSucceededBalancePurchaseStatus,
+  type BalancePurchaseWebhookAdmin,
+} from "./balance-purchase-webhook.ts";
+import type { SendGiftClaimEmailInput } from "./gift-claim-email.ts";
+
+type RpcCall = { fn: string; args?: Record<string, unknown> };
+type TableRow = Record<string, unknown>;
+
+function makeFakeAdmin(
+  opts: {
+    issueError?: { message: string };
+    tables?: { payment_orders?: TableRow[]; balance_purchases?: TableRow[] };
+  } = {},
+): BalancePurchaseWebhookAdmin & {
+  calls: RpcCall[];
+  tables: Record<string, TableRow[]>;
+} {
+  const calls: RpcCall[] = [];
+  const completedEvents = new Set<string>();
+  const tables: Record<string, TableRow[]> = {
+    payment_orders: opts.tables?.payment_orders ?? [],
+    balance_purchases: opts.tables?.balance_purchases ?? [],
+  };
+
+  return {
+    calls,
+    tables,
+    async rpc(fn, args) {
+      calls.push({ fn, args });
+
+      if (fn === "service_claim_stripe_webhook_event") {
+        const eventId = args?.p_stripe_event_id as string;
+        if (completedEvents.has(eventId)) {
+          return { data: [{ claim_status: "already_completed", attempt_count: 1 }], error: null };
+        }
+        return { data: [{ claim_status: "claimed", attempt_count: 1 }], error: null };
+      }
+
+      if (fn === "service_complete_stripe_webhook_event") {
+        const eventId = args?.p_stripe_event_id as string;
+        if (args?.p_success) completedEvents.add(eventId);
+        return { data: null, error: null };
+      }
+
+      if (fn === "service_issue_balance_purchase") {
+        if (opts.issueError) return { data: null, error: opts.issueError };
+        return { data: { status: "delivered", idempotent: false }, error: null };
+      }
+
+      return { data: null, error: null };
+    },
+    from(table: string) {
+      return {
+        update(patch: Record<string, unknown>) {
+          return {
+            eq(column: string, value: string) {
+              return {
+                async in(statusColumn: string, allowedValues: string[]) {
+                  const rows = tables[table] ?? [];
+                  const row = rows.find((r) => r[column] === value);
+                  if (!row) return { error: null };
+                  if (!allowedValues.includes(row[statusColumn] as string)) {
+                    // Guard: row is not in an advanceable state -- no-op, not an error.
+                    return { error: null };
+                  }
+                  Object.assign(row, patch);
+                  return { error: null };
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+function issueCalls(admin: { calls: RpcCall[] }): RpcCall[] {
+  return admin.calls.filter((c) => c.fn === "service_issue_balance_purchase");
+}
+
+function neverSendEmail(): Promise<void> {
+  throw new Error("sendGiftClaimEmail should not be called for this test");
+}
+
+function fakeEmailSender(): {
+  send: (input: SendGiftClaimEmailInput) => Promise<void>;
+  calls: SendGiftClaimEmailInput[];
+} {
+  const calls: SendGiftClaimEmailInput[] = [];
+  return {
+    calls,
+    async send(input) {
+      calls.push(input);
+    },
+  };
+}
+
+describe("handleBalancePurchasePaymentIntentEvent: exactly-once on retry", () => {
+  it("a webhook retry of the same event does not call service_issue_balance_purchase twice", async () => {
+    const admin = makeFakeAdmin();
+    const balancePurchaseId = randomUUID();
+    const event = { id: "evt_retry_1", type: "payment_intent.succeeded", livemode: false };
+    const intent = { id: "pi_retry_1", metadata: { kind: "balance_purchase", balance_purchase_id: balancePurchaseId } };
+
+    const first = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event,
+      intent,
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+    });
+    const second = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event,
+      intent,
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+    });
+
+    assert.equal(first.status, 200);
+    assert.equal(second.status, 200);
+    assert.equal(issueCalls(admin).length, 1);
+  });
+});
+
+describe("handleBalancePurchasePaymentIntentEvent: self vs gift", () => {
+  it("self top-up: issues with only p_balance_purchase_id and never sends an email", async () => {
+    const admin = makeFakeAdmin();
+    const balancePurchaseId = randomUUID();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_self", type: "payment_intent.succeeded", livemode: false },
+      intent: { id: "pi_self", metadata: { kind: "balance_purchase", balance_purchase_id: balancePurchaseId } },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+    });
+
+    assert.equal(res.status, 200);
+    const [call] = issueCalls(admin);
+    assert.equal(call.args?.p_balance_purchase_id, balancePurchaseId);
+    assert.equal("p_recipient_email_normalized" in (call.args ?? {}), false);
+    assert.equal("p_claim_token_hash" in (call.args ?? {}), false);
+  });
+
+  it("gift: issues with a normalized recipient email and a claim token hash, and emails the raw token (never the hash)", async () => {
+    const admin = makeFakeAdmin();
+    const balancePurchaseId = randomUUID();
+    const emailer = fakeEmailSender();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_gift", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_gift",
+        metadata: {
+          kind: "balance_purchase",
+          balance_purchase_id: balancePurchaseId,
+          recipient_email: "friend@example.com",
+          subtotal_cents: "2000",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: emailer.send,
+    });
+
+    assert.equal(res.status, 200);
+    const [call] = issueCalls(admin);
+    assert.equal(call.args?.p_recipient_email_normalized, "friend@example.com");
+    const hash = call.args?.p_claim_token_hash as string;
+    assert.match(hash, /^[0-9a-f]{64}$/);
+
+    assert.equal(emailer.calls.length, 1);
+    const emailInput = emailer.calls[0]!;
+    assert.equal(emailInput.to, "friend@example.com");
+    assert.equal(emailInput.amountCents, 2000);
+    // The RPC gets the hash; the email gets the raw token. They must differ,
+    // and the raw token must never equal what was hashed and sent to Postgres.
+    assert.notEqual(emailInput.claimToken, hash);
+    assert.equal(emailInput.claimToken.length > 0, true);
+  });
+});
+
+describe("handleBalancePurchasePaymentIntentEvent: gift-claim email failure never blocks the webhook", () => {
+  it("still completes the claim and acks 200 when the email sender throws", async () => {
+    const admin = makeFakeAdmin();
+    const balancePurchaseId = randomUUID();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_email_fail", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_email_fail",
+        metadata: {
+          kind: "balance_purchase",
+          balance_purchase_id: balancePurchaseId,
+          recipient_email: "friend@example.com",
+          subtotal_cents: "1000",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: async () => {
+        throw new Error("Resend API error 500: simulated outage");
+      },
+    });
+
+    assert.equal(res.status, 200);
+    // Issuance still happened (money already moved) and the event is still
+    // marked completed -- a retry would only resend the email, not help.
+    assert.equal(issueCalls(admin).length, 1);
+    const completeCalls = admin.calls.filter((c) => c.fn === "service_complete_stripe_webhook_event");
+    assert.equal(completeCalls.at(-1)?.args?.p_success, true);
+  });
+});
+
+describe("handleBalancePurchasePaymentIntentEvent: Part 0 status sync", () => {
+  it("payment_intent.payment_failed: payment_orders -> failed, balance_purchases -> canceled", async () => {
+    const orderId = randomUUID();
+    const purchaseId = randomUUID();
+    const admin = makeFakeAdmin({
+      tables: {
+        payment_orders: [{ id: orderId, status: "awaiting_payment" }],
+        balance_purchases: [{ id: purchaseId, status: "awaiting_payment" }],
+      },
+    });
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_failed", type: "payment_intent.payment_failed", livemode: false },
+      intent: {
+        id: "pi_failed",
+        metadata: { kind: "balance_purchase", payment_order_id: orderId, balance_purchase_id: purchaseId },
+      },
+      targetStatus: "failed",
+      sendGiftClaimEmail: neverSendEmail,
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(issueCalls(admin).length, 0);
+    assert.equal(admin.tables.payment_orders![0]!.status, "failed");
+    assert.equal(admin.tables.balance_purchases![0]!.status, "canceled");
+  });
+
+  it("payment_intent.canceled: both tables move to canceled", async () => {
+    const orderId = randomUUID();
+    const purchaseId = randomUUID();
+    const admin = makeFakeAdmin({
+      tables: {
+        payment_orders: [{ id: orderId, status: "created" }],
+        balance_purchases: [{ id: purchaseId, status: "awaiting_payment" }],
+      },
+    });
+
+    await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_canceled", type: "payment_intent.canceled", livemode: false },
+      intent: {
+        id: "pi_canceled",
+        metadata: { kind: "balance_purchase", payment_order_id: orderId, balance_purchase_id: purchaseId },
+      },
+      targetStatus: "canceled",
+      sendGiftClaimEmail: neverSendEmail,
+    });
+
+    assert.equal(admin.tables.payment_orders![0]!.status, "canceled");
+    assert.equal(admin.tables.balance_purchases![0]!.status, "canceled");
+  });
+
+  it("payment_intent.processing: payment_orders -> awaiting_payment, balance_purchases untouched", async () => {
+    const orderId = randomUUID();
+    const purchaseId = randomUUID();
+    const admin = makeFakeAdmin({
+      tables: {
+        payment_orders: [{ id: orderId, status: "created" }],
+        balance_purchases: [{ id: purchaseId, status: "awaiting_payment" }],
+      },
+    });
+
+    await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_processing", type: "payment_intent.processing", livemode: false },
+      intent: {
+        id: "pi_processing",
+        metadata: { kind: "balance_purchase", payment_order_id: orderId, balance_purchase_id: purchaseId },
+      },
+      targetStatus: "processing",
+      sendGiftClaimEmail: neverSendEmail,
+    });
+
+    assert.equal(admin.tables.payment_orders![0]!.status, "awaiting_payment");
+    assert.equal(admin.tables.balance_purchases![0]!.status, "awaiting_payment");
+  });
+
+  it("does not regress an already-terminal order on a late/out-of-order failed event", async () => {
+    const orderId = randomUUID();
+    const admin = makeFakeAdmin({
+      tables: { payment_orders: [{ id: orderId, status: "paid" }] },
+    });
+
+    await syncNonSucceededBalancePurchaseStatus(
+      admin,
+      { id: "pi_late", metadata: { payment_order_id: orderId } },
+      "failed",
+    );
+
+    // 'paid' is not in the advanceable set, so the guard must leave it alone.
+    assert.equal(admin.tables.payment_orders![0]!.status, "paid");
+  });
+});
+
+describe("handleBalancePurchasePaymentIntentEvent: malformed metadata", () => {
+  it("acks (does not retry forever) when balance_purchase_id metadata is missing", async () => {
+    const admin = makeFakeAdmin();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_missing_meta", type: "payment_intent.succeeded", livemode: false },
+      intent: { id: "pi_missing_meta", metadata: { kind: "balance_purchase" } },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(issueCalls(admin).length, 0);
+  });
+});
+
+describe("handleBalancePurchasePaymentIntentEvent: issuance failure", () => {
+  it("asks Stripe to retry when service_issue_balance_purchase errors", async () => {
+    const admin = makeFakeAdmin({ issueError: { message: "wallet is not active" } });
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_issue_error", type: "payment_intent.succeeded", livemode: false },
+      intent: { id: "pi_issue_error", metadata: { kind: "balance_purchase", balance_purchase_id: randomUUID() } },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+    });
+
+    assert.equal(res.status, 500);
+
+    const completeCalls = admin.calls.filter((c) => c.fn === "service_complete_stripe_webhook_event");
+    assert.equal(completeCalls.at(-1)?.args?.p_success, false);
+  });
+});
