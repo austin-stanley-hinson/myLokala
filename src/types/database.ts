@@ -219,6 +219,214 @@ export type Database = {
           },
         ]
       }
+      catalog_businesses: {
+        Row: {
+          business_name: string
+          created_at: string
+          id: string
+          merchant_account_id: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_name: string
+          created_at?: string
+          id?: string
+          merchant_account_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_name?: string
+          created_at?: string
+          id?: string
+          merchant_account_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_businesses_merchant_account_id_fkey"
+            columns: ["merchant_account_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_businesses_merchant_account_id_fkey"
+            columns: ["merchant_account_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_payment_readiness"
+            referencedColumns: ["merchant_account_id"]
+          },
+        ]
+      }
+      catalog_deal_redemptions: {
+        Row: {
+          business_name_snapshot: string
+          catalog_deal_id: string
+          category_snapshot: string
+          created_at: string
+          deal_title_snapshot: string
+          discount_detail_snapshot: string
+          id: string
+          redeemed_at: string
+          redeemed_date: string
+          user_id: string
+        }
+        Insert: {
+          business_name_snapshot: string
+          catalog_deal_id: string
+          category_snapshot: string
+          created_at?: string
+          deal_title_snapshot: string
+          discount_detail_snapshot: string
+          id?: string
+          redeemed_at?: string
+          redeemed_date?: string
+          user_id: string
+        }
+        Update: {
+          business_name_snapshot?: string
+          catalog_deal_id?: string
+          category_snapshot?: string
+          created_at?: string
+          deal_title_snapshot?: string
+          discount_detail_snapshot?: string
+          id?: string
+          redeemed_at?: string
+          redeemed_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_deal_redemptions_catalog_deal_id_fkey"
+            columns: ["catalog_deal_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_deal_redemptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_deals: {
+        Row: {
+          catalog_location_id: string
+          category: string
+          created_at: string
+          discount_detail: string
+          distance_meters: number | null
+          expires_at: string | null
+          id: string
+          legacy_created_at: string | null
+          legacy_deal_id: string
+          offer_type: string
+          percent_off: number | null
+          source: string
+          status: string
+          subtitle: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          catalog_location_id: string
+          category: string
+          created_at?: string
+          discount_detail: string
+          distance_meters?: number | null
+          expires_at?: string | null
+          id?: string
+          legacy_created_at?: string | null
+          legacy_deal_id: string
+          offer_type: string
+          percent_off?: number | null
+          source?: string
+          status?: string
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          catalog_location_id?: string
+          category?: string
+          created_at?: string
+          discount_detail?: string
+          distance_meters?: number | null
+          expires_at?: string | null
+          id?: string
+          legacy_created_at?: string | null
+          legacy_deal_id?: string
+          offer_type?: string
+          percent_off?: number | null
+          source?: string
+          status?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_deals_catalog_location_id_fkey"
+            columns: ["catalog_location_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_locations: {
+        Row: {
+          address: string
+          catalog_business_id: string
+          created_at: string
+          id: string
+          latitude: number
+          longitude: number
+          phone: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          address: string
+          catalog_business_id: string
+          created_at?: string
+          id?: string
+          latitude: number
+          longitude: number
+          phone?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          address?: string
+          catalog_business_id?: string
+          created_at?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          phone?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_locations_catalog_business_id_fkey"
+            columns: ["catalog_business_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_consumptions: {
         Row: {
           amount_cents: number
@@ -625,6 +833,42 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_catalog_deals: {
+        Row: {
+          catalog_deal_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          catalog_deal_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          catalog_deal_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_catalog_deals_catalog_deal_id_fkey"
+            columns: ["catalog_deal_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_catalog_deals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       settlement_batches: {
         Row: {
           created_at: string
@@ -911,6 +1155,10 @@ export type Database = {
           public_code: string
         }[]
       }
+      service_batch_merchant_settlement: {
+        Args: { p_merchant_account_id: string }
+        Returns: Json
+      }
       service_claim_pending_gift: {
         Args: { p_claim_token_hash: string; p_claimant_user_id: string }
         Returns: Json
@@ -936,6 +1184,10 @@ export type Database = {
           p_success: boolean
         }
         Returns: undefined
+      }
+      service_count_stripe_transfer_attempts: {
+        Args: { p_settlement_batch_id: string }
+        Returns: number
       }
       service_finalize_stripe_connected_account: {
         Args: {
@@ -965,6 +1217,30 @@ export type Database = {
           p_balance_purchase_id: string
           p_claim_token_hash?: string
           p_recipient_email_normalized?: string
+        }
+        Returns: Json
+      }
+      service_list_merchants_pending_settlement: {
+        Args: never
+        Returns: {
+          merchant_account_id: string
+          pending_redemption_count: number
+        }[]
+      }
+      service_list_stripe_transfer_attempts: {
+        Args: { p_settlement_batch_id: string }
+        Returns: Json
+      }
+      service_record_stripe_transfer_attempt: {
+        Args: {
+          p_amount_cents: number
+          p_attempt_count: number
+          p_failure_code?: string
+          p_failure_message?: string
+          p_idempotency_key: string
+          p_settlement_batch_id: string
+          p_status: string
+          p_stripe_transfer_id?: string
         }
         Returns: Json
       }
