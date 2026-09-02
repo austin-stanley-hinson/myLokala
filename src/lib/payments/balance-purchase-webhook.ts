@@ -235,6 +235,63 @@ async function completeBalancePurchaseWebhookEvent(
   if (error) throw error;
 }
 
+/**
+ * Records this PaymentIntent against app_private.stripe_payment_attempts
+ * (service_record_stripe_payment_attempt, migration 20260901000021) so the
+ * refund path has a real PaymentIntent id to act on. Added during the
+ * settlement/refund audit checkpoint: this table has existed since migration
+ * 20260901000008 but nothing ever wrote to it before now -- see that
+ * migration's comment for the forward-only caveat this implies (a balance
+ * purchase that succeeded before this fix shipped has no row here and is not
+ * refundable through the new path without a manual backfill).
+ *
+ * idempotency_key reuses create-balance-purchase.ts's own deterministic
+ * `lokala_balance_<clientRequestId>` key (same value, independent unique
+ * constraint on this table) -- a replayed payment_intent.succeeded event
+ * naturally collides on it, and the RPC's own ON CONFLICT DO NOTHING makes
+ * that collision a safe no-op. Best-effort and logged-only, matching this
+ * handler's existing discipline for everything past the point money and the
+ * gift_claims row are already committed: a failure here must never fail or
+ * retry the webhook, and reprocessing could only ever duplicate the attempt
+ * row (already prevented by the idempotency key), never fix anything.
+ */
+async function recordBalancePurchaseStripePaymentAttempt(
+  admin: BalancePurchaseWebhookAdmin,
+  intent: BalancePurchaseIntentInput,
+  livemode: boolean,
+): Promise<void> {
+  try {
+    const orderId = intent.metadata.payment_order_id;
+    const clientRequestId = intent.metadata.client_request_id;
+    if (!orderId || !clientRequestId) {
+      logBalancePurchaseWebhookFailure("payment_attempt_record_skipped_missing_metadata", {
+        intentId: intent.id,
+        hasOrderId: Boolean(orderId),
+        hasClientRequestId: Boolean(clientRequestId),
+      });
+      return;
+    }
+
+    const subtotalCents = Number(intent.metadata.subtotal_cents ?? "0");
+    const customerFeeCents = Number(intent.metadata.customer_fee_cents ?? "0");
+    const amountCents =
+      (Number.isFinite(subtotalCents) ? subtotalCents : 0) +
+      (Number.isFinite(customerFeeCents) ? customerFeeCents : 0);
+
+    const { error } = await admin.rpc("service_record_stripe_payment_attempt", {
+      p_payment_order_id: orderId,
+      p_stripe_payment_intent_id: intent.id,
+      p_amount_cents: amountCents,
+      p_livemode: livemode,
+      p_status: "succeeded",
+      p_idempotency_key: `lokala_balance_${clientRequestId}`,
+    });
+    if (error) throw error;
+  } catch (err) {
+    logBalancePurchaseWebhookFailure("payment_attempt_record_failed", err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Purchaser "gift sent" confirmation lookups.
 // ---------------------------------------------------------------------------
@@ -409,6 +466,8 @@ export async function handleBalancePurchasePaymentIntentEvent(params: {
 
     // Money and the gift_claims row are now committed. Nothing past this
     // point may throw -- an email failure is logged only.
+    await recordBalancePurchaseStripePaymentAttempt(admin, intent, event.livemode);
+
     if (recipientEmail && rawToken) {
       try {
         const subtotalCents = Number(intent.metadata.subtotal_cents ?? "0");

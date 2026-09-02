@@ -33,6 +33,7 @@ function makeFakeAdmin(
     userEmails?: Record<string, string>;
     expiryDays?: number;
     expiryDaysError?: { message: string };
+    recordPaymentAttemptError?: { message: string };
   } = {},
 ): BalancePurchaseWebhookAdmin & {
   calls: RpcCall[];
@@ -74,6 +75,13 @@ function makeFakeAdmin(
       if (fn === "service_get_gift_claim_expiry_days") {
         if (opts.expiryDaysError) return { data: null, error: opts.expiryDaysError };
         return { data: opts.expiryDays ?? 30, error: null };
+      }
+
+      if (fn === "service_record_stripe_payment_attempt") {
+        if (opts.recordPaymentAttemptError) {
+          return { data: null, error: opts.recordPaymentAttemptError };
+        }
+        return { data: { inserted: true }, error: null };
       }
 
       return { data: null, error: null };
@@ -130,6 +138,10 @@ function issueCalls(admin: { calls: RpcCall[] }): RpcCall[] {
   return admin.calls.filter((c) => c.fn === "service_issue_balance_purchase");
 }
 
+function recordPaymentAttemptCalls(admin: { calls: RpcCall[] }): RpcCall[] {
+  return admin.calls.filter((c) => c.fn === "service_record_stripe_payment_attempt");
+}
+
 function neverSendEmail(): Promise<void> {
   throw new Error("sendGiftClaimEmail should not be called for this test");
 }
@@ -169,7 +181,15 @@ describe("handleBalancePurchasePaymentIntentEvent: exactly-once on retry", () =>
     const admin = makeFakeAdmin();
     const balancePurchaseId = randomUUID();
     const event = { id: "evt_retry_1", type: "payment_intent.succeeded", livemode: false };
-    const intent = { id: "pi_retry_1", metadata: { kind: "balance_purchase", balance_purchase_id: balancePurchaseId } };
+    const intent = {
+      id: "pi_retry_1",
+      metadata: {
+        kind: "balance_purchase",
+        balance_purchase_id: balancePurchaseId,
+        payment_order_id: randomUUID(),
+        client_request_id: "req-retry-1",
+      },
+    };
 
     const first = await handleBalancePurchasePaymentIntentEvent({
       admin,
@@ -191,6 +211,124 @@ describe("handleBalancePurchasePaymentIntentEvent: exactly-once on retry", () =>
     assert.equal(first.status, 200);
     assert.equal(second.status, 200);
     assert.equal(issueCalls(admin).length, 1);
+    // The webhook-level replay guard (claim_status: already_completed) short-
+    // circuits before any RPC of the second delivery runs at all -- so the
+    // attempt-recording call is naturally called at most once too.
+    assert.equal(recordPaymentAttemptCalls(admin).length, 1);
+  });
+});
+
+describe("handleBalancePurchasePaymentIntentEvent: stripe_payment_attempts recording", () => {
+  it("self top-up: records the PaymentIntent id, order id, and status once, before any gift-only work", async () => {
+    const admin = makeFakeAdmin();
+    const orderId = randomUUID();
+    const balancePurchaseId = randomUUID();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_record_self", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_record_self",
+        metadata: {
+          kind: "balance_purchase",
+          payment_order_id: orderId,
+          balance_purchase_id: balancePurchaseId,
+          client_request_id: "req-record-self",
+          subtotal_cents: "2000",
+          customer_fee_cents: "60",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
+    });
+
+    assert.equal(res.status, 200);
+    const calls = recordPaymentAttemptCalls(admin);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]!.args?.p_payment_order_id, orderId);
+    assert.equal(calls[0]!.args?.p_stripe_payment_intent_id, "pi_record_self");
+    assert.equal(calls[0]!.args?.p_amount_cents, 2060);
+    assert.equal(calls[0]!.args?.p_livemode, false);
+    assert.equal(calls[0]!.args?.p_status, "succeeded");
+    assert.equal(calls[0]!.args?.p_idempotency_key, "lokala_balance_req-record-self");
+  });
+
+  it("gift: also records the attempt (not skipped just because a recipient email is present)", async () => {
+    const admin = makeFakeAdmin();
+    const orderId = randomUUID();
+    const balancePurchaseId = randomUUID();
+
+    await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_record_gift", type: "payment_intent.succeeded", livemode: true },
+      intent: {
+        id: "pi_record_gift",
+        metadata: {
+          kind: "balance_purchase",
+          payment_order_id: orderId,
+          balance_purchase_id: balancePurchaseId,
+          client_request_id: "req-record-gift",
+          recipient_email: "friend@example.com",
+          subtotal_cents: "1000",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: async () => {},
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
+    });
+
+    const calls = recordPaymentAttemptCalls(admin);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]!.args?.p_stripe_payment_intent_id, "pi_record_gift");
+    assert.equal(calls[0]!.args?.p_livemode, true);
+  });
+
+  it("a failure recording the payment attempt never blocks the webhook or issuance", async () => {
+    const admin = makeFakeAdmin({ recordPaymentAttemptError: { message: "simulated insert failure" } });
+    const balancePurchaseId = randomUUID();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_record_fail", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_record_fail",
+        metadata: {
+          kind: "balance_purchase",
+          payment_order_id: randomUUID(),
+          balance_purchase_id: balancePurchaseId,
+          client_request_id: "req-record-fail",
+        },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(issueCalls(admin).length, 1);
+    const completeCalls = admin.calls.filter((c) => c.fn === "service_complete_stripe_webhook_event");
+    assert.equal(completeCalls.at(-1)?.args?.p_success, true);
+  });
+
+  it("skips recording (and does not throw) when payment_order_id or client_request_id metadata is missing", async () => {
+    const admin = makeFakeAdmin();
+    const balancePurchaseId = randomUUID();
+
+    const res = await handleBalancePurchasePaymentIntentEvent({
+      admin,
+      event: { id: "evt_record_missing_meta", type: "payment_intent.succeeded", livemode: false },
+      intent: {
+        id: "pi_record_missing_meta",
+        metadata: { kind: "balance_purchase", balance_purchase_id: balancePurchaseId },
+      },
+      targetStatus: "succeeded",
+      sendGiftClaimEmail: neverSendEmail,
+      sendGiftSentConfirmation: neverSendGiftSentConfirmation,
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(recordPaymentAttemptCalls(admin).length, 0);
   });
 });
 
