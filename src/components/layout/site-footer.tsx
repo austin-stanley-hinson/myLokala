@@ -34,10 +34,15 @@ export function SiteFooter() {
                   Home
                 </Link>
               </li>
+              <li>
+                <Link href="/browse" className={footerLinkClass}>
+                  Local Deals
+                </Link>
+              </li>
               {/*
-                Deal discovery and web gift purchasing are quarantined for the
-                gift-balance MVP; the shopper experience lives in the Lokala
-                mobile app, so those links are intentionally omitted here.
+                Web gift purchasing is still quarantined for the gift-balance
+                MVP; the gift-balance shopper experience lives in the Lokala
+                mobile app, so that link is intentionally omitted here.
               */}
               <li>
                 <span className="text-sm font-medium text-lokala-muted/70">
