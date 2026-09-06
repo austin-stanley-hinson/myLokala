@@ -1,0 +1,277 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * MMCC legacy catalog import (browsable deal catalog). SERVER-ONLY / CLI-ONLY.
+ *
+ * Source: the immutable export at
+ * "Desktop/Lokala Legacy Export 2026-08-29/deals_raw.json" (95 active rows
+ * from the legacy `deals` table, project ifvnofdnjvmsfsxhixip -- see
+ * supabase/migrations/20260901000019_mmcc_catalog_schema.sql for the target
+ * schema). Entirely independent of the gift-balance money rails: no wallet,
+ * ledger, purchase, gifting, redemption, or settlement code/tables are
+ * touched by this module.
+ *
+ * The legacy export has no offer_type column -- it is derived here from
+ * percent_off: present -> 'percentage', absent -> 'flat'. 'flat' is really
+ * "not a percentage": a handful of the null-percent_off rows are actually
+ * BOGO or free-item offers rather than a fixed dollar amount, but the
+ * schema only distinguishes structurally by whether percent_off is
+ * populated (matching the source data's only real signal), and the full
+ * original wording is preserved verbatim in title/subtitle/discount_detail
+ * regardless, so no offer detail is lost to this simplification.
+ *
+ * Idempotent and safe to run repeatedly against the SAME export: businesses
+ * and locations are upserted by their natural key (source+business_name,
+ * catalog_business_id+address), deals by legacy_deal_id. Running it twice in
+ * a row reproduces identical row counts in every table -- proven in
+ * mmcc-import.test.ts and by the local dry-run described in the checkpoint
+ * report, not just asserted here. Re-running against a LATER export with
+ * changed field values (a corrected title, a new phone number) correctly
+ * refreshes the existing row rather than erroring or duplicating it -- this
+ * import is refresh-on-reimport, not insert-once-then-immutable.
+ *
+ * One caller-visible design point: Silver Street Tavern's two legacy deals
+ * (1d81fb3c-06dc-4a9c-bba6-93e9ebe24c19, 784049cc-86ea-44f2-b599-cb8f36b4e376)
+ * share one business_name and one address -- they correctly upsert to the
+ * SAME catalog_businesses/catalog_locations row (deduped, as intended) while
+ * still producing two distinct catalog_deals rows (never deduped, since
+ * legacy_deal_id is the deal-level key). The per-row business/location
+ * upsert cache below exists specifically so two deal rows for the same
+ * business/location trigger the upsert calls at most once each, not to
+ * change that outcome.
+ */
+
+export type MmccExportRow = {
+  legacy_deal_id: string;
+  business_name: string;
+  title: string;
+  subtitle: string | null;
+  discount_detail: string;
+  expires_at: string | null;
+  category: string;
+  distance_meters: number | null;
+  percent_off: number | null;
+  address: string;
+  phone: string | null;
+  website: string | null;
+  is_active: boolean;
+  created_at: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type NormalizedCatalogDeal = {
+  legacyDealId: string;
+  businessName: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  phone: string | null;
+  website: string | null;
+  title: string;
+  subtitle: string | null;
+  discountDetail: string;
+  offerType: "percentage" | "flat";
+  percentOff: number | null;
+  category: string;
+  expiresAt: string | null;
+  distanceMeters: number | null;
+  status: "active" | "inactive";
+  legacyCreatedAt: string;
+};
+
+export function normalizeMmccDealRow(raw: MmccExportRow): NormalizedCatalogDeal {
+  const hasPercentOff = raw.percent_off !== null && raw.percent_off !== undefined;
+
+  return {
+    legacyDealId: raw.legacy_deal_id,
+    businessName: raw.business_name,
+    address: raw.address,
+    latitude: raw.latitude,
+    longitude: raw.longitude,
+    phone: raw.phone ?? null,
+    website: raw.website ?? null,
+    title: raw.title,
+    subtitle: raw.subtitle ?? null,
+    discountDetail: raw.discount_detail,
+    offerType: hasPercentOff ? "percentage" : "flat",
+    percentOff: hasPercentOff ? raw.percent_off : null,
+    category: raw.category,
+    expiresAt: raw.expires_at ?? null,
+    distanceMeters: raw.distance_meters ?? null,
+    status: raw.is_active ? "active" : "inactive",
+    legacyCreatedAt: raw.created_at,
+  };
+}
+
+export type CatalogImportDeps = {
+  upsertBusiness(businessName: string): Promise<{ id: string }>;
+  upsertLocation(args: {
+    businessId: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    phone: string | null;
+    website: string | null;
+  }): Promise<{ id: string }>;
+  upsertDeal(args: {
+    legacyDealId: string;
+    locationId: string;
+    title: string;
+    subtitle: string | null;
+    discountDetail: string;
+    offerType: "percentage" | "flat";
+    percentOff: number | null;
+    category: string;
+    expiresAt: string | null;
+    distanceMeters: number | null;
+    status: "active" | "inactive";
+    legacyCreatedAt: string;
+  }): Promise<{ id: string }>;
+};
+
+export type CatalogImportSummary = {
+  totalRows: number;
+  businessesUpserted: number;
+  locationsUpserted: number;
+  dealsUpserted: number;
+  errors: Array<{ legacyDealId: string; message: string }>;
+};
+
+export async function importMmccCatalog(
+  rows: MmccExportRow[],
+  deps: CatalogImportDeps,
+): Promise<CatalogImportSummary> {
+  const summary: CatalogImportSummary = {
+    totalRows: rows.length,
+    businessesUpserted: 0,
+    locationsUpserted: 0,
+    dealsUpserted: 0,
+    errors: [],
+  };
+
+  const businessIdByName = new Map<string, string>();
+  const locationIdByKey = new Map<string, string>();
+
+  for (const raw of rows) {
+    try {
+      const deal = normalizeMmccDealRow(raw);
+
+      let businessId = businessIdByName.get(deal.businessName);
+      if (!businessId) {
+        const business = await deps.upsertBusiness(deal.businessName);
+        businessId = business.id;
+        businessIdByName.set(deal.businessName, businessId);
+        summary.businessesUpserted += 1;
+      }
+
+      const locationKey = `${businessId} ${deal.address}`;
+      let locationId = locationIdByKey.get(locationKey);
+      if (!locationId) {
+        const location = await deps.upsertLocation({
+          businessId,
+          address: deal.address,
+          latitude: deal.latitude,
+          longitude: deal.longitude,
+          phone: deal.phone,
+          website: deal.website,
+        });
+        locationId = location.id;
+        locationIdByKey.set(locationKey, locationId);
+        summary.locationsUpserted += 1;
+      }
+
+      await deps.upsertDeal({
+        legacyDealId: deal.legacyDealId,
+        locationId,
+        title: deal.title,
+        subtitle: deal.subtitle,
+        discountDetail: deal.discountDetail,
+        offerType: deal.offerType,
+        percentOff: deal.percentOff,
+        category: deal.category,
+        expiresAt: deal.expiresAt,
+        distanceMeters: deal.distanceMeters,
+        status: deal.status,
+        legacyCreatedAt: deal.legacyCreatedAt,
+      });
+      summary.dealsUpserted += 1;
+    } catch (err) {
+      summary.errors.push({
+        legacyDealId: raw.legacy_deal_id,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return summary;
+}
+
+const CATALOG_SOURCE = "mmcc_legacy_export";
+
+/** Production deps: real Supabase admin client (service_role, bypasses RLS
+ * by design -- this import is service_role-only, matching the catalog
+ * tables' write policy). */
+export function createCatalogImportDeps(admin: SupabaseClient): CatalogImportDeps {
+  return {
+    async upsertBusiness(businessName) {
+      const { data, error } = await admin
+        .from("catalog_businesses")
+        .upsert(
+          { business_name: businessName, source: CATALOG_SOURCE, status: "active" },
+          { onConflict: "source,business_name" },
+        )
+        .select("id")
+        .single();
+      if (error) throw error;
+      return { id: data.id as string };
+    },
+
+    async upsertLocation({ businessId, address, latitude, longitude, phone, website }) {
+      const { data, error } = await admin
+        .from("catalog_locations")
+        .upsert(
+          {
+            catalog_business_id: businessId,
+            address,
+            latitude,
+            longitude,
+            phone,
+            website,
+          },
+          { onConflict: "catalog_business_id,address" },
+        )
+        .select("id")
+        .single();
+      if (error) throw error;
+      return { id: data.id as string };
+    },
+
+    async upsertDeal(args) {
+      const { data, error } = await admin
+        .from("catalog_deals")
+        .upsert(
+          {
+            legacy_deal_id: args.legacyDealId,
+            catalog_location_id: args.locationId,
+            source: CATALOG_SOURCE,
+            title: args.title,
+            subtitle: args.subtitle,
+            discount_detail: args.discountDetail,
+            offer_type: args.offerType,
+            percent_off: args.percentOff,
+            category: args.category,
+            expires_at: args.expiresAt,
+            distance_meters: args.distanceMeters,
+            status: args.status,
+            legacy_created_at: args.legacyCreatedAt,
+          },
+          { onConflict: "legacy_deal_id" },
+        )
+        .select("id")
+        .single();
+      if (error) throw error;
+      return { id: data.id as string };
+    },
+  };
+}

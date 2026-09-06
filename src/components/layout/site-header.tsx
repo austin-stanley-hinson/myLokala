@@ -151,9 +151,10 @@ export function SiteHeader() {
         { href: "/business/locations", label: "Locations" },
       ]
     : [
-        // Deal discovery and web gift purchasing are quarantined for the
-        // gift-balance MVP, so they're intentionally omitted from navigation.
+        // Web gift purchasing is still quarantined for the gift-balance MVP.
+        // Deal discovery (the MMCC catalog) is not -- /browse is live.
         { href: "/", label: "Home" },
+        { href: "/browse", label: "Deals" },
         { href: "/signup", label: "For Businesses" },
       ];
 
