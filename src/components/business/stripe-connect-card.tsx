@@ -1,103 +1,85 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CreditCard, Loader2 } from "lucide-react";
+import { Banknote, CheckCircle2, Loader2 } from "lucide-react";
 
-type StatusPill = {
-  label: string;
-  className: string;
-};
+import { parseConnectRedirectResponse } from "@/lib/stripe/connect-redirect";
+import {
+  connectPayoutView,
+  type MerchantConnectStatus,
+} from "@/lib/stripe/connect-status";
 
 /**
- * Dashboard entry point for Stripe Connect onboarding.
+ * Merchant payout onboarding card.
  *
- * Reflects the merchant's current payment readiness and starts (or resumes)
- * hosted onboarding by calling POST /api/stripe/connect/onboard and redirecting
- * to the returned Stripe URL. The Stripe secret key never touches the client —
- * the route runs entirely on the server.
+ * Starts or resumes hosted Express onboarding via POST /api/stripe/connect/onboard.
+ * The Stripe secret key never touches the client.
  */
 export function StripeConnectCard({
-  onboardingStatus,
-  chargesEnabled,
-  payoutsEnabled,
-  paymentsReady,
+  status,
+  canManage,
+  syncError,
 }: {
-  onboardingStatus: string | null;
-  chargesEnabled: boolean;
-  payoutsEnabled: boolean;
-  /** Server-computed: readiness flags AND connected account matches platform mode. */
-  paymentsReady?: boolean;
+  status: MerchantConnectStatus;
+  canManage: boolean;
+  syncError?: string | null;
 }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<"onboard" | "login" | null>(null);
+  const [error, setError] = useState<string | null>(syncError ?? null);
+  const view = connectPayoutView(status, canManage);
+  const eventuallyDueNotice =
+    status.requirementsEventuallyDue.length > 0 &&
+    view.tone !== "restricted" &&
+    view.tone !== "disabled";
 
-  const connected =
-    paymentsReady ??
-    (onboardingStatus === "complete" && chargesEnabled && payoutsEnabled);
-  const inProgress =
-    onboardingStatus === "pending" || onboardingStatus === "restricted";
-
-  const pill: StatusPill = connected
-    ? {
-        label: "Connected",
-        className: "bg-lokala-green-light text-lokala-green-dark",
-      }
-    : onboardingStatus === "restricted"
-      ? {
-          label: "Action needed",
-          className: "bg-lokala-danger/10 text-lokala-danger",
-        }
-      : onboardingStatus === "pending"
-        ? {
-            label: "In review",
-            className: "bg-lokala-brown-soft text-lokala-brown",
-          }
-        : {
-            label: "Not connected",
-            className: "bg-lokala-brown-soft text-lokala-brown",
-          };
-
-  const buttonLabel = inProgress
-    ? "Continue Stripe setup"
-    : "Connect with Stripe";
-
-  const description = connected
-    ? "Your Stripe account is connected. You can accept gift certificate payments and receive payouts."
-    : onboardingStatus === "restricted"
-      ? "Stripe needs more information before you can accept payments and receive payouts. Continue setup to resolve it."
-      : onboardingStatus === "pending"
-        ? "Stripe is finishing verifying your account. Continue setup if any details are still required."
-        : "Connect Stripe to sell gift certificates and receive payouts. You'll need a connected Stripe account before you can accept paid gift certificate purchases from local customers.";
+  async function postForUrl(path: string) {
+    const response = await fetch(path, { method: "POST" });
+    const data: unknown = await response.json().catch(() => null);
+    const parsed = parseConnectRedirectResponse(data, response.ok);
+    if (!parsed.ok) {
+      throw new Error(parsed.error);
+    }
+    window.location.assign(parsed.url);
+  }
 
   async function startOnboarding() {
-    setLoading(true);
+    setLoading("onboard");
     setError(null);
-
     try {
-      const response = await fetch("/api/stripe/connect/onboard", {
-        method: "POST",
-      });
-      const data = (await response.json().catch(() => null)) as {
-        url?: string;
-        error?: string;
-      } | null;
-
-      if (!response.ok || !data?.url) {
-        setError(
-          data?.error ?? "Could not start Stripe onboarding. Please try again.",
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Hand off to Stripe's hosted onboarding. Keep loading true so the button
-      // stays disabled through the redirect.
-      window.location.href = data.url;
-    } catch {
-      setError("Could not reach the server. Please try again.");
-      setLoading(false);
+      await postForUrl("/api/stripe/connect/onboard");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not reach the server. Please try again.",
+      );
+      setLoading(null);
     }
   }
+
+  async function openDashboard() {
+    setLoading("login");
+    setError(null);
+    try {
+      await postForUrl("/api/stripe/connect/login-link");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not reach the server. Please try again.",
+      );
+      setLoading(null);
+    }
+  }
+
+  const pillClass =
+    view.tone === "ready"
+      ? "bg-lokala-green-light text-lokala-green-dark"
+      : view.tone === "disabled"
+        ? "bg-lokala-danger/10 text-lokala-danger"
+        : view.tone === "restricted"
+          ? "bg-lokala-danger/10 text-lokala-danger"
+          : "bg-lokala-brown-soft text-lokala-brown";
 
   return (
     <section
@@ -107,26 +89,32 @@ export function StripeConnectCard({
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-lokala-green-light text-lokala-green-dark">
-            {connected ? (
+            {view.tone === "ready" ? (
               <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
             ) : (
-              <CreditCard className="h-6 w-6" aria-hidden="true" />
+              <Banknote className="h-6 w-6" aria-hidden="true" />
             )}
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-extrabold text-lokala-brown-dark">
-                Payments
+                Payouts
               </h2>
               <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${pill.className}`}
+                className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${pillClass}`}
               >
-                {pill.label}
+                {view.pillLabel}
               </span>
             </div>
             <p className="mt-2 max-w-md text-sm leading-6 text-lokala-muted">
-              {description}
+              {view.description}
             </p>
+            {eventuallyDueNotice ? (
+              <p className="mt-3 rounded-xl border border-lokala-border bg-lokala-cream-light/80 px-3 py-2 text-sm leading-6 text-lokala-brown">
+                Stripe may ask for more information later. That does not block
+                Lokala settlements right now.
+              </p>
+            ) : null}
             {error ? (
               <p
                 role="alert"
@@ -138,27 +126,51 @@ export function StripeConnectCard({
           </div>
         </div>
 
-        {connected ? null : (
-          <div className="flex flex-col items-start sm:pt-1">
-            <button
-              type="button"
-              onClick={() => void startOnboarding()}
-              disabled={loading}
-              className="inline-flex min-w-[13rem] items-center justify-center gap-2 rounded-full bg-lokala-green px-5 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Starting…
-                </>
-              ) : (
-                buttonLabel
-              )}
-            </button>
-            <p className="mt-2 max-w-[13rem] text-left text-xs text-lokala-muted">
-              Securely set up payments and payouts through Stripe.
+        {canManage ? (
+          <div className="flex flex-col items-start gap-2 sm:pt-1">
+            {view.showOnboard ? (
+              <button
+                type="button"
+                onClick={() => void startOnboarding()}
+                disabled={loading !== null}
+                className="inline-flex min-w-[13rem] items-center justify-center gap-2 rounded-full bg-lokala-green px-5 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading === "onboard" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Starting…
+                  </>
+                ) : (
+                  view.onboardLabel
+                )}
+              </button>
+            ) : null}
+            {view.showLogin ? (
+              <button
+                type="button"
+                onClick={() => void openDashboard()}
+                disabled={loading !== null}
+                className="inline-flex min-w-[13rem] items-center justify-center gap-2 rounded-full border border-lokala-border bg-white px-5 py-2.5 text-sm font-bold text-lokala-brown transition hover:bg-lokala-brown-soft disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading === "login" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Opening…
+                  </>
+                ) : (
+                  "Open Stripe dashboard"
+                )}
+              </button>
+            ) : null}
+            <p className="mt-1 max-w-[13rem] text-left text-xs text-lokala-muted">
+              Stripe hosts identity and bank details. Lokala never sees your
+              account number.
             </p>
           </div>
+        ) : (
+          <p className="max-w-[13rem] text-xs leading-5 text-lokala-muted sm:pt-1">
+            View only — ask an owner or admin to connect payouts.
+          </p>
         )}
       </div>
     </section>

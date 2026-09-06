@@ -115,10 +115,10 @@ describe("ACH pricing", () => {
     assert.ok(calculateCustomerFeeCents(1, "ach") >= 0);
   });
 
-  it("versions ACH separately from card", () => {
-    assert.equal(feePolicyVersion("merchant_qr_payment", "card"), "qr-card-v1");
-    assert.equal(feePolicyVersion("merchant_qr_payment", "ach"), "qr-ach-v1");
-    assert.equal(feePolicyVersion("gift_certificate_purchase", "card"), "gift-card-v1");
+  it("stamps the shared colin_v1 pricing version for card and ACH", () => {
+    assert.equal(feePolicyVersion("merchant_qr_payment", "card"), "colin_v1");
+    assert.equal(feePolicyVersion("merchant_qr_payment", "ach"), "colin_v1");
+    assert.equal(feePolicyVersion("gift_certificate_purchase", "card"), "colin_v1");
   });
 });
 
@@ -154,7 +154,7 @@ describe("merchant QR payment", () => {
   });
 
   it("stamps the policy version", () => {
-    assert.equal(quote.feePolicyVersion, "qr-card-v1");
+    assert.equal(quote.feePolicyVersion, "colin_v1");
   });
 
   it("excludes the tip from every fee base", () => {

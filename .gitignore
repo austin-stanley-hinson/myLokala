@@ -46,4 +46,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Supabase CLI local generated state (never commit)
 supabase/.temp/
+supabase/.branches/

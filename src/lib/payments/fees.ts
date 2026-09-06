@@ -123,16 +123,23 @@ export function resolveCustomerTier(baseCents: number): CustomerTier {
 }
 
 /**
- * Policy version identifying the schedule that produced a breakdown, e.g.
- * "qr-card-v1". Kind and method are both encoded because each can be repriced
- * independently.
+ * Canonical pricing-policy identifier shared with platform_config.pricing_version.
+ * Historical payment rows keep the version stamped at charge time; a future
+ * schedule change introduces a new constant rather than rewriting past rows.
+ */
+export const FEE_POLICY_VERSION = "colin_v1" as const;
+
+/**
+ * Policy version stamped on every fee breakdown. Kind/method remain inputs for
+ * callers that price differently later, but MVP always records colin_v1.
  */
 export function feePolicyVersion(
   kind: PaymentKind,
   paymentMethod: PaymentMethod,
 ): string {
-  const kindSlug = kind === "merchant_qr_payment" ? "qr" : "gift";
-  return `${kindSlug}-${paymentMethod}-v1`;
+  void kind;
+  void paymentMethod;
+  return FEE_POLICY_VERSION;
 }
 
 /** Customer-side fee for a fee base, honoring the ACH discount. */

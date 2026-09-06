@@ -3,8 +3,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { PayAmountForm } from "@/components/pay/pay-amount-form";
-import { lookupBusinessForQrCode } from "@/lib/business/qr-public";
+import { resolvePaymentHub } from "@/lib/merchant/setup";
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
+import { createTypedClient } from "@/lib/supabase/server";
+import { RedeemPanel } from "./redeem-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -12,67 +14,50 @@ type PayPageProps = {
   params: Promise<{ public_code: string }>;
 };
 
+async function loadHub(publicCode: string) {
+  if (!hasPublicSupabaseEnv()) {
+    return null;
+  }
+  const supabase = await createTypedClient();
+  return resolvePaymentHub(supabase, publicCode);
+}
+
 export async function generateMetadata({
   params,
 }: PayPageProps): Promise<Metadata> {
   const { public_code } = await params;
-  const business = await lookupBusinessForQrCode(public_code);
+  const hub = await loadHub(public_code);
 
-  if (!business) {
+  if (!hub) {
     return {
-      title: {
-        absolute: "Payment link not found | Lokala",
-      },
+      title: { absolute: "Payment link not found | Lokala" },
       robots: { index: false, follow: false },
     };
   }
 
   return {
-    title: {
-      absolute: `Pay ${business.business_name} | Lokala`,
-    },
-    description: `Pay ${business.business_name} with Lokala.`,
+    title: { absolute: `Pay ${hub.merchantDisplayName} | Lokala` },
+    description: `Pay ${hub.merchantDisplayName} with Lokala gift balance.`,
     robots: { index: false, follow: false },
   };
 }
 
 export default async function PayByQrPage({ params }: PayPageProps) {
   const { public_code } = await params;
-  const business = await lookupBusinessForQrCode(public_code);
+  const hub = await loadHub(public_code);
 
-  if (!business) {
-    return (
-      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-4 px-4 py-16 sm:px-6">
-        <Link href="/" className="inline-flex items-center gap-2 self-start">
-          <Image
-            src="/logo-try-1.png"
-            alt=""
-            width={36}
-            height={36}
-            className="size-9 rounded-xl object-cover"
-          />
-          <BrandWordmark className="text-xl" />
-        </Link>
-        <h1 className="text-2xl font-extrabold text-lokala-brown-dark">
-          Payment link not found
-        </h1>
-        <p className="text-sm leading-6 text-lokala-muted">
-          This QR code is inactive or doesn&apos;t match a Lokala business.
-          Ask the business for their current Lokala QR code.
-        </p>
-        <Link
-          href="/"
-          className="mt-2 inline-flex w-fit rounded-full border border-lokala-border bg-white px-4 py-2.5 text-sm font-bold text-lokala-green-dark transition hover:bg-lokala-green-light"
-        >
-          Back to Lokala
-        </Link>
-      </div>
-    );
+  let isAuthenticated = false;
+  if (hub && hasPublicSupabaseEnv()) {
+    const supabase = await createTypedClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    isAuthenticated = Boolean(user);
   }
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 px-4 py-10 sm:px-6">
-      <header className="flex flex-col gap-4">
+      <header>
         <Link href="/" className="inline-flex items-center gap-2 self-start">
           <span className="relative size-9 overflow-hidden rounded-xl bg-lokala-cream">
             <Image
@@ -85,32 +70,27 @@ export default async function PayByQrPage({ params }: PayPageProps) {
           </span>
           <BrandWordmark className="text-xl" />
         </Link>
-
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-lokala-green-dark">
-            Pay with Lokala
-          </p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-lokala-brown-dark">
-            {business.business_name}
-          </h1>
-          {business.business_address ? (
-            <p className="mt-1 text-sm font-semibold text-lokala-muted">
-              {business.business_address}
-            </p>
-          ) : (
-            <p className="mt-1 text-sm font-semibold text-lokala-muted">
-              Waterville, ME
-            </p>
-          )}
-        </div>
       </header>
 
-      <PayAmountForm businessName={business.business_name} />
-
-      <p className="text-center text-xs font-semibold text-lokala-muted">
-        No customer account required on the web. Payment processing is not live
-        yet.
-      </p>
+      {hub ? (
+        <RedeemPanel hub={hub} initialIsAuthenticated={isAuthenticated} />
+      ) : (
+        <section className="rounded-3xl border border-lokala-border bg-white p-8 shadow-lokala-card">
+          <h1 className="text-2xl font-extrabold text-lokala-brown-dark">
+            Payment link not found
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-lokala-muted">
+            This QR code is inactive, expired, or doesn&apos;t match a Lokala
+            business. Ask the business for their current Lokala QR code.
+          </p>
+          <Link
+            href="/"
+            className="mt-6 inline-flex rounded-full bg-lokala-green px-5 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark"
+          >
+            Back to Lokala
+          </Link>
+        </section>
+      )}
     </div>
   );
 }

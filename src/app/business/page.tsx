@@ -1,56 +1,46 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CreditCard, Gift, Store } from "lucide-react";
+import { CreditCard, MapPin, Store } from "lucide-react";
 
-import { getBusinessContext, isPaymentsConnected } from "@/lib/auth/business-context";
+import { getBusinessContext } from "@/lib/auth/business-context";
 import { buildPageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Safe generic metadata for the business portal entry. The page itself remains
- * auth-gated (redirects non-owners). Not listed in the public sitemap.
- */
 export const metadata: Metadata = buildPageMetadata({
-  title: "Lokala for Businesses | Local Deals and Gift Certificates",
+  title: "Lokala for Businesses | Gift Balance",
   description:
-    "Create a Lokala business account to manage your local business profile, prepare gift certificates, and connect payments securely.",
+    "Manage your Lokala merchant profile, locations, and payment QR codes.",
   path: "/business",
 });
 
 export default async function BusinessOverviewPage() {
-  const { ownerName, businessName, paymentAccount } = await getBusinessContext();
-
-  const connected = isPaymentsConnected(paymentAccount);
-  const paymentsHint = connected
-    ? "Connected — ready for payouts"
-    : paymentAccount?.onboarding_status === "restricted"
-      ? "Action needed to finish setup"
-      : paymentAccount?.onboarding_status === "pending"
-        ? "Verification in progress"
-        : "Not connected yet";
+  const { displayName, role, merchant } = await getBusinessContext();
+  const ownerName = displayName ?? undefined;
+  const businessName = merchant.display_name;
 
   const cards = [
     {
       href: "/business/profile",
       label: "Business profile",
-      description: "Update your business name, address, phone, and website.",
+      description: "Update your business name, contact details, and description.",
       hint: businessName,
       icon: Store,
     },
     {
-      href: "/business/payments",
-      label: "Payments",
-      description: "Connect Stripe to accept payments and receive payouts.",
-      hint: paymentsHint,
-      icon: CreditCard,
+      href: "/business/locations",
+      label: "Locations & QR",
+      description:
+        "Add store locations and print a permanent payment QR for each one.",
+      hint: "Ready now",
+      icon: MapPin,
     },
     {
-      href: "/business/gift-certificates",
-      label: "Gift certificates",
-      description: "Publish gift certificates for local customers to buy.",
-      hint: "Coming soon",
-      icon: Gift,
+      href: "/business/payments",
+      label: "Payments",
+      description: "Connect payouts so customers can redeem Lokala balance.",
+      hint: "Payouts",
+      icon: CreditCard,
     },
   ];
 
@@ -68,7 +58,11 @@ export default async function BusinessOverviewPage() {
           <span className="font-bold text-lokala-brown-dark">
             {businessName}
           </span>{" "}
-          on Lokala.
+          on Lokala
+          <span className="ml-2 rounded-full bg-lokala-green-light px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-lokala-green-dark">
+            {role}
+          </span>
+          .
         </p>
       </header>
 

@@ -35,6 +35,7 @@ const CLIENT_MESSAGE: Record<CreatePaymentFailure, string> = {
   stripe_unavailable: "Could not start the payment. Please try again.",
   db_error: "Something went wrong. Please try again.",
   server_error: "Something went wrong. Please try again.",
+  retired_kind: "Paying a business by QR code here is no longer available.",
 };
 
 export function clientMessageFor(code: CreatePaymentFailure): string {

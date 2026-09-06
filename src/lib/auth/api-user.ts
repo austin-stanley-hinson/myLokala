@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -32,10 +33,7 @@ export async function resolveApiUserId(req: Request): Promise<string | null> {
     return null;
   }
 
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!hasPublicSupabaseEnv()) {
     return null;
   }
 

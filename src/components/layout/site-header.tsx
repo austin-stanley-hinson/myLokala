@@ -5,9 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  CreditCard,
   KeyRound,
   LogOut,
+  MapPin,
   Menu,
   UserRound,
   X,
@@ -17,11 +17,8 @@ import type { AuthChangeEvent, User } from "@supabase/supabase-js";
 
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { buttonVariants } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
-import {
-  isBusinessOwner,
-  resolveBusinessOwner,
-} from "@/lib/auth/business-profile";
+import { createClient, createTypedClient } from "@/lib/supabase/client";
+import { isActiveMerchantMember } from "@/lib/auth/merchant";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string };
@@ -101,6 +98,7 @@ export function SiteHeader() {
         setUser(nextUser);
 
         if (!nextUser) {
+          setBusinessOwner(false);
           setMenuOpen(false);
         }
       },
@@ -112,19 +110,16 @@ export function SiteHeader() {
     };
   }, []);
 
-  // Resolve business ownership from the profiles table (source of truth), with
-  // an optimistic metadata check first to avoid a nav flicker for owners.
+  // Resolve merchant access from an active `merchant_members` row (the
+  // authorization source of truth). No metadata optimism — membership only.
+  // Clearing on sign-out is handled in the auth-state listener above so this
+  // effect never sets state synchronously during commit.
   useEffect(() => {
-    if (!user) {
-      setBusinessOwner(false);
-      return;
-    }
+    if (!user) return;
 
-    setBusinessOwner(isBusinessOwner(user));
-
-    const supabase = createClient();
+    const supabase = createTypedClient();
     let cancelled = false;
-    void resolveBusinessOwner(supabase, user).then((result) => {
+    void isActiveMerchantMember(supabase, user.id).then((result) => {
       if (!cancelled) setBusinessOwner(result);
     });
     return () => {
@@ -153,13 +148,12 @@ export function SiteHeader() {
     ? [
         { href: "/business", label: "Dashboard" },
         { href: "/business/profile", label: "Profile" },
-        { href: "/business/payments", label: "Payments" },
-        { href: "/business/gift-certificates", label: "Gift Certificates" },
+        { href: "/business/locations", label: "Locations" },
       ]
     : [
+        // Deal discovery and web gift purchasing are quarantined for the
+        // gift-balance MVP, so they're intentionally omitted from navigation.
         { href: "/", label: "Home" },
-        { href: "/browse", label: "Browse Deals" },
-        { href: "/gift-certificates", label: "Gift Certificates" },
         { href: "/signup", label: "For Businesses" },
       ];
 
@@ -170,7 +164,7 @@ export function SiteHeader() {
   const accountMenuItems: AccountItem[] = businessOwner
     ? [
         { href: "/business/profile", label: "Profile", icon: UserRound },
-        { href: "/business/payments", label: "Payments", icon: CreditCard },
+        { href: "/business/locations", label: "Locations", icon: MapPin },
         { href: "/forgot-password", label: "Change password", icon: KeyRound },
       ]
     : [];

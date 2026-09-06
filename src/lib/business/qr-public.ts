@@ -1,3 +1,4 @@
+import { hasPublicSupabaseEnv } from "@/lib/supabase/public-env";
 import { createClient } from "@/lib/supabase/server";
 
 export type PublicQrBusiness = {
@@ -16,10 +17,7 @@ export async function lookupBusinessForQrCode(
   const code = publicCode.trim();
   if (!code) return null;
 
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!hasPublicSupabaseEnv()) {
     return null;
   }
 

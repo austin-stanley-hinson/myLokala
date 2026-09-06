@@ -1,120 +1,87 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-
-import { createClient } from "@/lib/supabase/server";
-import { isBusinessOwner } from "@/lib/auth/business-profile";
-import { readinessPatchFromStripeAccount } from "@/lib/stripe/connect-readiness";
+import { getBusinessContext } from "@/lib/auth/business-context";
+import { canManageMerchant } from "@/lib/auth/merchant";
+import { StripeConnectCard } from "@/components/business/stripe-connect-card";
+import {
+  EMPTY_CONNECT_STATUS,
+  connectPayoutView,
+  parseMerchantConnectStatus,
+} from "@/lib/stripe/connect-status";
+import { syncConnectedAccountFromStripe } from "@/lib/stripe/connect-onboarding";
 import { getStripe, isStripePlatformLive } from "@/lib/stripe/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createTypedClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type PaymentAccountRow = {
-  stripe_account_id: string | null;
-};
-
 /**
- * Return destination for Stripe Connect hosted onboarding.
+ * Hosted-onboarding return page.
  *
- * Server-only: re-reads the connected account from Stripe, refreshes the
- * cached status/flags in business_payment_accounts, then shows a simple
- * success / needs-action screen linking back to the dashboard.
+ * Returning from Stripe is not treated as completion. We retrieve the
+ * current-mode connected account, refresh cached readiness, then render the
+ * real status.
  */
 export default async function PaymentsReturnPage() {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    redirect("/login");
-  }
+  const { merchant, role } = await getBusinessContext();
+  const canManage = canManageMerchant(role);
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-  if (!isBusinessOwner(user)) {
-    redirect("/");
-  }
-
-  const { data: account } = await supabase
-    .from("business_payment_accounts")
-    .select("stripe_account_id")
-    .eq("owner_id", user.id)
-    .maybeSingle<PaymentAccountRow>();
-
-  // Nothing to refresh without a connected account — send them back to start.
-  if (!account?.stripe_account_id) {
-    redirect("/business/payments");
-  }
-
-  let onboarding_status = "pending";
-  let errorMessage: string | null = null;
-
+  let syncError: string | null = null;
   try {
-    const stripe = getStripe();
-    const stripeAccount = await stripe.accounts.retrieve(
-      account.stripe_account_id,
-    );
-    const patch = readinessPatchFromStripeAccount(
-      stripeAccount,
-      isStripePlatformLive(),
-    );
-    onboarding_status = patch.onboarding_status;
-
-    const { error: updateError } = await supabase
-      .from("business_payment_accounts")
-      .update({
-        charges_enabled: patch.charges_enabled,
-        payouts_enabled: patch.payouts_enabled,
-        details_submitted: patch.details_submitted,
-        onboarding_status: patch.onboarding_status,
-        livemode: patch.livemode,
-      })
-      .eq("owner_id", user.id);
-
-    if (updateError) {
-      errorMessage = updateError.message;
+    const platformLive = isStripePlatformLive();
+    const synced = await syncConnectedAccountFromStripe({
+      stripe: getStripe(),
+      admin: createAdminClient(),
+      merchantAccountId: merchant.id,
+      platformLive,
+    });
+    if (!synced.ok) {
+      syncError = synced.error;
     }
-  } catch (err) {
-    errorMessage =
-      err instanceof Error
-        ? err.message
-        : "Could not refresh your Stripe status.";
+  } catch {
+    syncError =
+      "Payout status could not be refreshed. Showing the last saved status.";
   }
 
-  const isComplete = onboarding_status === "complete";
-  const heading = errorMessage
-    ? "We couldn't refresh your status"
-    : isComplete
-      ? "Your Stripe account is connected"
-      : "Almost there";
-  const body = errorMessage
-    ? errorMessage
-    : isComplete
-      ? "Charges and payouts are enabled. You can now sell gift certificates and receive payouts."
-      : "Stripe still needs a few more details before you can accept payments and receive payouts. You can resume onboarding from your dashboard.";
+  const supabase = await createTypedClient();
+  const { data, error } = await supabase.rpc("get_merchant_connect_status", {
+    p_merchant_account_id: merchant.id,
+  });
+  const status = error
+    ? EMPTY_CONNECT_STATUS
+    : parseMerchantConnectStatus(data);
+  const view = connectPayoutView(status, canManage);
+
+  const headline =
+    view.tone === "ready"
+      ? "Payouts are ready"
+      : view.tone === "incomplete"
+        ? "Stripe setup incomplete"
+        : view.tone === "restricted" || view.tone === "disabled"
+          ? "Stripe needs more information"
+          : view.tone === "pending"
+            ? "Stripe is still reviewing your account"
+            : "Finish payout setup";
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4 py-16 sm:px-6">
-      <div className="rounded-3xl border border-lokala-border bg-white p-8 shadow-lokala-card">
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6">
+      <header>
         <p className="text-sm font-bold uppercase tracking-[0.18em] text-lokala-green-dark">
           Payments
         </p>
-        <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-lokala-brown-dark">
-          {heading}
+        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-lokala-brown-dark">
+          {headline}
         </h1>
-        <p className="mt-3 text-sm leading-6 text-lokala-muted">{body}</p>
+        <p className="mt-2 text-sm leading-6 text-lokala-muted">
+          Coming back from Stripe does not always mean onboarding is finished.
+          This page shows whether Lokala can settle redeemed balance to your
+          restaurant.
+        </p>
+      </header>
 
-        <Link
-          href="/business/payments"
-          className="mt-6 inline-flex rounded-full bg-lokala-green px-5 py-2.5 text-sm font-bold text-white shadow-lokala-soft transition hover:bg-lokala-green-dark"
-        >
-          Back to dashboard
-        </Link>
-      </div>
+      <StripeConnectCard
+        status={status}
+        canManage={canManage}
+        syncError={error ? "Payout status could not be loaded." : syncError}
+      />
     </div>
   );
 }

@@ -1,17 +1,20 @@
-import Link from "next/link";
-
-import {
-  getBusinessContext,
-  isPaymentsConnected,
-} from "@/lib/auth/business-context";
-import { BusinessQrSection } from "@/components/business/business-qr-section";
-import { GiftCertificatesSection } from "@/components/business/gift-certificates-section";
+import { getBusinessContext } from "@/lib/auth/business-context";
+import { DeferredFeatureNotice } from "@/components/layout/deferred-feature-notice";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * QUARANTINED (gift-balance MVP): the merchant QR panel loaded/created rows in
+ * the legacy `business_qr_codes` table, and gift-certificate publishing depends
+ * on the deferred Stripe rebuild. The session + active `merchant_members` guard
+ * (`getBusinessContext`) is preserved and still gates this page — the notice
+ * below never bypasses merchant authorization. Legacy QR / gift-certificate
+ * components remain in the repo for later phases.
+ */
 export default async function BusinessGiftCertificatesPage() {
-  const { userId, businessName, paymentAccount } = await getBusinessContext();
-  const connected = isPaymentsConnected(paymentAccount);
+  // Guard: only active merchant members reach this page.
+  const { merchant } = await getBusinessContext();
+  const businessName = merchant.display_name;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6">
@@ -23,29 +26,16 @@ export default async function BusinessGiftCertificatesPage() {
           Publish gift certificates
         </h1>
         <p className="mt-2 text-sm leading-6 text-lokala-muted">
-          Sell gift certificates for your business to local customers.
+          Tools for {businessName} to sell gift certificates to local customers.
         </p>
       </header>
 
-      <BusinessQrSection
-        businessOwnerId={userId}
-        businessName={businessName}
+      <DeferredFeatureNotice
+        eyebrow="Coming next"
+        title="Gift certificate tools are being rebuilt"
+        description="Your Lokala QR code and gift-certificate publishing are being rebuilt on the new gift-balance platform, together with payments and payouts. They'll return here soon — no action is needed right now."
+        actions={[{ href: "/business", label: "Back to dashboard" }]}
       />
-
-      {!connected ? (
-        <p className="rounded-2xl border border-lokala-border bg-lokala-brown-soft/40 px-4 py-3 text-sm text-lokala-brown">
-          You&apos;ll need to{" "}
-          <Link
-            href="/business/payments"
-            className="font-bold text-lokala-green-dark underline underline-offset-4"
-          >
-            connect Stripe
-          </Link>{" "}
-          before you can sell paid gift certificates and receive payouts.
-        </p>
-      ) : null}
-
-      <GiftCertificatesSection />
     </div>
   );
 }
