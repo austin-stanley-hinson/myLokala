@@ -5,7 +5,10 @@ export const SITE_URL = "https://www.mylokala.com";
 
 export const SITE_NAME = "Lokala";
 
-const DEFAULT_OG_IMAGE = `${SITE_URL}/logo-try-1.png`;
+export const SITE_DESCRIPTION =
+  "Lokala shows you the deals running at local shops, cafés, and restaurants near you. Free on the App Store.";
+
+const DEFAULT_OG_IMAGE = `${SITE_URL}/lokala-mark.png`;
 
 type PageSeoInput = {
   title: string;

@@ -1,7 +1,5 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 /* Class-based dark variant that is never activated — keeps stray `dark:`
    utilities inert instead of reacting to the OS color scheme. */
@@ -206,4 +204,89 @@
   textarea {
     @apply text-base;
   }
+}
+
+/* ---- App landing motion: kept small and opt-out for reduced motion ---- */
+@keyframes lokala-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lokala-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1deg);
+  }
+}
+
+@keyframes lokala-sway {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
+@keyframes lokala-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes lokala-pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@layer utilities {
+  .reveal {
+    transition:
+      opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      translate 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .reveal[data-reveal="hidden"] {
+    opacity: 0;
+    translate: 0 1.5rem;
+  }
+  .rise-in {
+    animation: lokala-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--rise-delay, 0ms);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
 }

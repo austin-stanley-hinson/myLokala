@@ -1,21 +1,20 @@
-/**
- * Runtime base URL for links this server generates itself (emails,
- * webhooks) -- distinct from `seo.ts`'s SITE_URL, which is deliberately
- * hardcoded to production because canonical/OG URLs must always point there
- * regardless of where the code is running. This one must resolve to
- * wherever THIS instance actually is, so a link built while running
- * `next dev` or a Vercel preview still works.
- *
- * Precedence: an explicit NEXT_PUBLIC_SITE_URL override, then Vercel's own
- * auto-injected VERCEL_URL (preview/production deploys), then localhost for
- * plain local dev.
- */
-export function getRuntimeSiteUrl(): string {
-  const explicit = process.env.NEXT_PUBLIC_SITE_URL;
-  if (explicit) return explicit.replace(/\/+$/, "");
+export const APP_STORE_ID = "6777827133";
 
-  const vercelUrl = process.env.VERCEL_URL;
-  if (vercelUrl) return `https://${vercelUrl}`;
+/** Public App Store listing for the Lokala iOS app (matches the printed QR). */
+export const APP_STORE_URL = `https://apps.apple.com/app/lokala/id${APP_STORE_ID}`;
 
-  return "http://localhost:3000";
-}
+export const CONTACT_EMAIL = "calmaloneybusiness@gmail.com";
+
+export const COMPANY = {
+  legalName: "Lokala LLC",
+  street: "4 Drew St.",
+  locality: "Augusta",
+  region: "ME",
+} as const;
+
+export const NAV_LINKS = [
+  { href: "/about", label: "About" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+  { href: "/contact", label: "Contact" },
+] as const;

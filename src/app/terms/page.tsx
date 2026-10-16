@@ -1,13 +1,15 @@
+import type { Metadata } from "next";
+
+import { LegalDocument } from "@/components/legal/legal-document";
+import { TERMS } from "@/content/legal";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Terms of Service | Lokala",
+  description: "The terms that govern your use of the Lokala app and mylokala.com.",
+  path: "/terms",
+});
+
 export default function TermsPage() {
-  return (
-    <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-16 sm:px-6">
-      <h1 className="text-3xl font-semibold tracking-tight text-primary-dark">
-        Terms of Service
-      </h1>
-      <p className="mt-4 text-muted-foreground">
-        Terms of use for customers and businesses will appear here. Please check
-        back soon.
-      </p>
-    </div>
-  );
+  return <LegalDocument doc={TERMS} />;
 }

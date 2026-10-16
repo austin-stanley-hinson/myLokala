@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
 import { Fraunces, Geist_Mono, Inter } from "next/font/google";
 
-import { AlertBanner } from "@/components/layout/alert-banner";
-import { BusinessFooter } from "@/components/layout/business-footer";
-import { HideOnBusiness } from "@/components/layout/hide-on-business";
-import { HideOnHome } from "@/components/layout/hide-on-home";
 import { PageBackground } from "@/components/layout/page-background";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteJsonLd } from "@/components/seo/json-ld";
-import { SITE_NAME, SITE_URL } from "@/lib/seo";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
+
+import { APP_STORE_ID } from "@/lib/site";
 
 import "./globals.css";
 
@@ -40,8 +38,11 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    "Discover local deals and gift certificates from participating businesses in Waterville, Maine. Lokala helps neighbors support nearby businesses and keep spending local.",
+    SITE_DESCRIPTION,
   applicationName: SITE_NAME,
+  itunes: {
+    appId: APP_STORE_ID,
+  },
   alternates: {
     canonical: "/",
   },
@@ -52,10 +53,10 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: "Lokala | Always Local",
     description:
-      "Discover local deals and gift certificates from participating businesses in Waterville, Maine. Lokala helps neighbors support nearby businesses and keep spending local.",
+      SITE_DESCRIPTION,
     images: [
       {
-        url: "/logo-try-1.png",
+        url: "/lokala-mark.png",
         alt: "Lokala",
       },
     ],
@@ -64,8 +65,8 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Lokala | Always Local",
     description:
-      "Discover local deals and gift certificates from participating businesses in Waterville, Maine.",
-    images: ["/logo-try-1.png"],
+      SITE_DESCRIPTION,
+    images: ["/lokala-mark.png"],
   },
 };
 
@@ -82,19 +83,9 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col bg-lokala-cream-light text-lokala-text">
         <SiteJsonLd />
         <PageBackground />
-        <HideOnHome>
-          <AlertBanner />
-        </HideOnHome>
-        <HideOnHome>
-          <SiteHeader />
-        </HideOnHome>
+        <SiteHeader />
         <main className="flex flex-1 flex-col">{children}</main>
-        <HideOnHome>
-          <HideOnBusiness>
-            <SiteFooter />
-          </HideOnBusiness>
-        </HideOnHome>
-        <BusinessFooter />
+        <SiteFooter />
       </body>
     </html>
   );
