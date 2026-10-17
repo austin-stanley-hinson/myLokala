@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { AppStoreButton } from "@/components/app/app-store-button";
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { NAV_LINKS } from "@/lib/site";
+import { NavLinks } from "@/components/layout/nav-links";
 
 export function SiteHeader() {
   return (
@@ -24,20 +24,17 @@ export function SiteHeader() {
           <BrandWordmark className="text-2xl" />
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="rounded-full px-3.5 py-2 text-base font-semibold text-lokala-brown transition-colors hover:bg-white hover:text-lokala-green-dark"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        <NavLinks
+          className="hidden items-center gap-1 md:flex"
+          linkClassName="text-base"
+        />
 
         <AppStoreButton compact className="rounded-xl" />
       </div>
+      <NavLinks
+        className="-mt-1 flex justify-between gap-0.5 overflow-x-auto px-2 pb-2 [scrollbar-width:none] md:hidden"
+        linkClassName="px-2.5 py-1.5 text-sm"
+      />
     </header>
   );
 }

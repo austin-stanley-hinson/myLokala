@@ -5,6 +5,7 @@ import { ArrowRight, Bookmark, MapPin, Store } from "lucide-react";
 
 import { AppStoreButton } from "@/components/app/app-store-button";
 import { DownloadCta } from "@/components/app/download-cta";
+import { HeroCarousel, type HeroSlide } from "@/components/app/hero-carousel";
 import { QrCard } from "@/components/app/qr-card";
 import { Reveal } from "@/components/app/reveal";
 import { buildPageMetadata } from "@/lib/seo";
@@ -15,6 +16,59 @@ export const metadata: Metadata = buildPageMetadata({
     "Lokala shows you the deals running at local shops, cafés, and restaurants near you. Free on the App Store.",
   path: "/",
 });
+
+const HERO_SLIDES: HeroSlide[] = [
+  {
+    src: "/w5.jpg",
+    alt: "Main Street in downtown Waterville at sunset",
+    caption: "Downtown Waterville, ME",
+  },
+  {
+    src: "/w3.avif",
+    alt: "Aerial view of Waterville and the Kennebec River at dusk",
+    caption: "Waterville from above",
+  },
+  {
+    src: "/w4.jpg",
+    alt: "Welcome to Downtown Waterville sign",
+    caption: "Welcome downtown",
+  },
+  {
+    src: "/w6.jpg",
+    alt: "A green steel bridge reflected in a calm river lined with fall trees",
+    caption: "Fall on the river",
+  },
+  {
+    src: "/w8.jpg",
+    alt: "The Kennebec River in autumn",
+    caption: "The Kennebec in autumn",
+  },
+  {
+    src: "/w10.jpg",
+    alt: "Brick college buildings under a pink evening sky",
+    caption: "Evenings on the Hill",
+  },
+  {
+    src: "/w7.jpg",
+    alt: "Granite ledges and red blueberry bushes above the Maine coast",
+    caption: "Coast-of-Maine views",
+  },
+  {
+    src: "/w12.jpg",
+    alt: "Fog rolling over a pine forest from a mountain overlook",
+    caption: "Up in the pines",
+  },
+  {
+    src: "/w9.jpg",
+    alt: "A quiet pond at dusk beside a timber-framed building",
+    caption: "Quiet by the water",
+  },
+  {
+    src: "/w11.jpg",
+    alt: "A wooded trail opening onto a wide Maine valley",
+    caption: "Out on the trail",
+  },
+];
 
 const STEPS = [
   {
@@ -85,21 +139,11 @@ export default function HomePage() {
           </div>
 
           <div className="rise-in relative mx-auto w-full max-w-md [--rise-delay:200ms] lg:max-w-none">
-            <div className="relative aspect-4/5 overflow-hidden rounded-[2.5rem] border-[6px] border-white shadow-lokala-lift sm:aspect-square lg:aspect-4/5">
-              <Image
-                src="/w5.jpg"
-                alt="Main Street in downtown Waterville at sunset"
-                fill
-                priority
-                sizes="(min-width: 1024px) 40vw, 90vw"
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-lokala-brown-dark/40 via-transparent to-transparent" />
-              <p className="absolute bottom-5 left-5 rounded-full bg-white/90 px-3 py-1 text-sm font-bold text-lokala-brown-dark backdrop-blur">
-                Downtown Waterville, ME
-              </p>
-            </div>
-            <QrCard float className="absolute -left-10 top-10 hidden lg:block" />
+            <HeroCarousel slides={HERO_SLIDES} />
+            <QrCard
+              float
+              className="absolute -left-10 top-10 hidden lg:block"
+            />
           </div>
         </div>
       </section>

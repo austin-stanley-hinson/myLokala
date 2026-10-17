@@ -5,6 +5,7 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import { APP_STORE_URL, COMPANY, CONTACT_EMAIL } from "@/lib/site";
 
 const FOOTER_LINKS = [
+  { href: "/", label: "Home" },
   { href: "/about", label: "About Lokala" },
   { href: "/privacy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms of Service" },
@@ -24,7 +25,13 @@ export function SiteFooter() {
         <div className="grid gap-10 sm:grid-cols-[1.4fr_1fr_1fr]">
           <div className="space-y-3">
             <Link href="/" className="inline-flex items-center gap-2">
-              <Image src="/lokala-mark.png" alt="" width={36} height={36} className="size-9" />
+              <Image
+                src="/lokala-mark.png"
+                alt=""
+                width={36}
+                height={36}
+                className="size-9"
+              />
               <BrandWordmark className="text-xl" />
             </Link>
             <p className="max-w-xs text-sm leading-relaxed text-lokala-muted">
@@ -59,7 +66,10 @@ export function SiteFooter() {
           <div className="space-y-3">
             <p className={columnHeadingClass}>Say hello</p>
             <address className="flex flex-col gap-2.5 text-sm not-italic text-lokala-muted">
-              <a href={`mailto:${CONTACT_EMAIL}`} className={`${footerLinkClass} break-all`}>
+              <a
+                href={`mailto:${CONTACT_EMAIL}`}
+                className={`${footerLinkClass} break-all`}
+              >
                 {CONTACT_EMAIL}
               </a>
               <span>
